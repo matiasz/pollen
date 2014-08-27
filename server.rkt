@@ -32,7 +32,9 @@
   (define module-root (apply build-path (drop-right (explode-path (current-contract-region)) 1)))
   (world:current-server-extras-path (build-path module-root world:server-extras-dir))
   
-  (parameterize ([error-print-width 1000]
+  (define server-t 
+    (thread (λ() 
+              (parameterize ([error-print-width 1000]
                  [current-cache (make-cache)])
     (serve/servlet pollen-servlet
                    #:port (world:current-server-port)
@@ -40,4 +42,6 @@
                    #:servlet-regexp #rx"" ; respond to top level
                    #:command-line? #t
                    #:file-not-found-responder route-404
-                   #:extra-files-paths (list (world:current-server-extras-path) (world:current-project-root)))))
+                   #:extra-files-paths (list (world:current-server-extras-path) (world:current-project-root)))))))
+  
+  (thread-wait server-t))
