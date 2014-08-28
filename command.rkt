@@ -27,15 +27,14 @@ clone                 copy project to desktop without source files" ,(world:curr
                                                       (displayln (format "Rendering preproc & pagetree files in directory ~a" dir-or-path))
                                                       (apply append (map (λ(proc) (filter proc (directory-list dir-or-path))) (list preproc-source? pagetree-source?))))))))))
 
+(require racket/system)
 
 (define (handle-start directory [port #f])
   (if (not (directory-exists? directory))
       (error (format "~a is not a directory" directory))
-      `(begin 
-         (require pollen/server pollen/world)
-         (parameterize ([world:current-project-root ,directory]
-                        ,@(if port (list `(world:current-server-port ,port)) null))
-           (start-server)))))
+      (let ([sys-command 
+             (format "racket -i -l pollen/world -l pollen/server -e '(define t (thread (lambda () (parameterize ([world:current-project-root \"~a\"] ~a) (start-server)))))'" directory (if port (format "(world:current-server-port ~a))" port) ""))])
+        (system sys-command))))
 
 
 (define (handle-clone directory rest-args)
