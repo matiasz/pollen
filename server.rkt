@@ -35,13 +35,19 @@
   (define server-t 
     (thread (λ() 
               (parameterize ([error-print-width 1000]
-                 [current-cache (make-cache)])
-    (serve/servlet pollen-servlet
-                   #:port (world:current-server-port)
-                   #:listen-ip #f
-                   #:servlet-regexp #rx"" ; respond to top level
-                   #:command-line? #t
-                   #:file-not-found-responder route-404
-                   #:extra-files-paths (list (world:current-server-extras-path) (world:current-project-root)))))))
+                             [current-cache (make-cache)])
+                (serve/servlet pollen-servlet
+                               #:port (world:current-server-port)
+                               #:listen-ip #f
+                               #:servlet-regexp #rx"" ; respond to top level
+                               #:command-line? #t
+                               #:file-not-found-responder route-404
+                               #:extra-files-paths (list (world:current-server-extras-path) (world:current-project-root)))))))
+  
+  (define repl-t (thread (λ() (let loop ()
+                                 (display ">")
+                                 (define in (read-line))
+                                 (displayln (format "Haha, you said ~a" in))
+                                 (loop)))))
   
   (thread-wait server-t))
