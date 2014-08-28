@@ -32,8 +32,9 @@ clone                 copy project to desktop without source files" ,(world:curr
 (define (handle-start directory [port #f])
   (if (not (directory-exists? directory))
       (error (format "~a is not a directory" directory))
-      (let ([sys-command 
-             (format "racket -i -l pollen/world -l pollen/server -e '(define t (thread (lambda () (parameterize ([world:current-project-root \"~a\"] ~a) (start-server)))))'" directory (if port (format "(world:current-server-port ~a))" port) ""))])
+      (let ()
+        (define  sys-command 
+          (format "racket -i -l pollen/world -l pollen/server -e '(define t (thread (lambda () (parameterize ([world:current-project-root \"~a\"] ~a) (start-server)))))'" directory (if port (format "(world:current-server-port ~a))" port) "")))
         (system sys-command))))
 
 
