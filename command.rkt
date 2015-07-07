@@ -87,8 +87,7 @@ version                print the version (~a)" (world:current-server-port) (worl
   (if (not (directory-exists? directory))
       (error (format "~a is not a directory" directory))
       (parameterize ([world:current-project-root directory]
-                     [world:current-server-port (or port world:default-port)]
-                     [compile-enforce-module-constants #f])
+                     [world:current-server-port (or port world:default-port)])
         ((dynamic-require 'pollen/server 'start-server)))))
 
 

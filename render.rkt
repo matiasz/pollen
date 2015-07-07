@@ -166,7 +166,7 @@
       [else (error (format "render: no rendering function found for ~a" source-path))]))
   
   (message (format "render: ~a" (file-name-from-path source-path)))
-  ;(void (file-needed-rerequire? source-path)) ; put file into rerequire memory
+  (void (file-needed-rerequire? source-path)) ; put file into rerequire memory
   (store-render-in-modification-dates source-path template-path) ; todo?: this may need to go after render
   (apply render-proc (cons source-path (if template-path (list template-path) null))))
 
@@ -277,7 +277,7 @@
                                    racket/format
                                    racket/function
                                    racket/port 
-                                   racket/rerequire 
+                                   pollen/rerequire 
                                    racket/list
                                    racket/match
                                    racket/string
@@ -307,7 +307,7 @@
   (define cached-modules (cdr (current-eval-namespace-cache)))
   (parameterize ([current-namespace (make-base-namespace)]
                  [current-output-port (current-error-port)]
-                 [current-pagetree (make-project-pagetree (world:current-project-root))])
-    (report/file (compile-enforce-module-constants))
+                 [current-pagetree (make-project-pagetree (world:current-project-root))]
+                 [compile-enforce-module-constants #f])
     (for-each (λ(mod-name) (namespace-attach-module cache-ns mod-name)) cached-modules)   
     (eval expr-to-eval (current-namespace))))
