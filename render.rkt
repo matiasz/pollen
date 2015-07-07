@@ -1,7 +1,7 @@
 #lang racket/base
-(require racket/file racket/rerequire racket/path racket/match)
-(require sugar/coerce sugar/test sugar/define sugar/container sugar/file sugar/len)
-(require "file.rkt" "cache.rkt" "world.rkt" "debug.rkt" "pagetree.rkt" "project.rkt" "template.rkt")
+(require racket/file racket/path racket/match racket/list)
+(require sugar/test sugar/define sugar/container sugar/file)
+(require "file.rkt" "cache.rkt" "world.rkt" "debug.rkt" "pagetree.rkt" "project.rkt" "template.rkt" "rerequire.rkt")
 
 
 ;; when you want to generate everything fresh, 
@@ -63,8 +63,10 @@
 (define/contract (modification-date-expired? . rest-paths)
   (() #:rest valid-path-args? . ->* . boolean?)
   (define key (make-mod-dates-key rest-paths))
-  (or (not (key . in? . modification-date-hash))  ; no stored mod date
-      (not (equal? (map path->mod-date-value key) (get modification-date-hash key))))) ; data has changed
+  ;; either no stored mod date, or data has changed
+  (and (world:current-render-cache-active)
+       (or (not (key . in? . modification-date-hash)) 
+           (not (equal? (map path->mod-date-value key) (get modification-date-hash key))))))
 
 (module-test-internal
  (check-true (modification-date-expired? sample-01)) ; because key hasn't been stored
@@ -116,22 +118,26 @@
 
 (define (directory-requires-changed? source-path)
   (define directory-require-files (get-directory-require-files source-path))
-  (define rerequire-results (and directory-require-files (map file-needed-rerequire? directory-require-files)))
-  (define requires-changed? (and rerequire-results (ormap (λ(x) x) rerequire-results)))
-  (when requires-changed?
-    (begin
-      (message "render: directory require files have changed. Resetting cache & file-modification table")
-      (reset-cache) ; because stored data is obsolete
-      (reset-modification-dates))) ; because rendered files are obsolete
-  requires-changed?)
+  (and directory-require-files
+       (let* ([rerequire-results (map file-needed-rerequire? directory-require-files)]
+              [requires-changed? (ormap (λ(x) x) rerequire-results)])
+         (when requires-changed?
+           (begin
+             (message "render: directory require files have changed. Resetting cache & file-modification table")
+             (reset-cache) ; because stored data is obsolete
+             (reset-modification-dates))) ; because rendered files are obsolete
+         requires-changed?)))
 
-
-(define/contract (render-needed? source-path template-path output-path)
-  (complete-path? (or/c #f complete-path?) complete-path? . -> . boolean?)
-  (or (not (file-exists? output-path))
-      (modification-date-expired? source-path template-path)
-      (and (not (null-source? source-path)) (file-needed-rerequire? source-path))
-      (and (world:check-directory-requires-in-render?) (directory-requires-changed? source-path))))
+(require sugar/debug)
+(define/contract+provide (render-needed? source-path [template-path #f] [maybe-output-path #f])
+  ((complete-path?) ((or/c #f complete-path?) (or/c #f complete-path?)) . ->* . (or/c #f symbol?))
+  (define output-path (or maybe-output-path (->output-path source-path)))
+  (or (and (not (file-exists? output-path)) 'output-file-missing)
+      (and (if template-path
+               (modification-date-expired? source-path template-path)
+               (modification-date-expired? source-path)) 'modification-date-changed)
+      (and (not (null-source? source-path)) (file-needed-rerequire? source-path) 'source-needed-rerequire)
+      (and (world:check-directory-requires-in-render?) (directory-requires-changed? source-path) 'directory-requires-changed)))
 
 
 (define/contract+provide (render-to-file-if-needed source-path [template-path #f] [maybe-output-path #f] #:force [force #f])
@@ -154,12 +160,13 @@
   ((complete-path?) ((or/c #f complete-path?)) . ->* . (or/c string? bytes?))
   (define render-proc 
     (cond
-      [(ormap (λ(test render-proc) (and (test source-path) render-proc))
+      [(ormap (λ(pred render-proc) (and (pred source-path) render-proc))
               (list has/is-null-source? has/is-preproc-source? has/is-markup-source? has/is-scribble-source? has/is-markdown-source? has/is-template-source?)
               (list render-null-source render-preproc-source render-markup-or-markdown-source render-scribble-source render-markup-or-markdown-source render-preproc-source))] 
       [else (error (format "render: no rendering function found for ~a" source-path))]))
   
   (message (format "render: ~a" (file-name-from-path source-path)))
+  ;(void (file-needed-rerequire? source-path)) ; put file into rerequire memory
   (store-render-in-modification-dates source-path template-path) ; todo?: this may need to go after render
   (apply render-proc (cons source-path (if template-path (list template-path) null))))
 
@@ -186,6 +193,7 @@
 (define/contract (render-preproc-source source-path)
   (complete-path? . -> . (or/c string? bytes?))
   (match-define-values (source-dir _ _) (split-path source-path))
+  (store-render-in-modification-dates source-path)
   (time (parameterize ([current-directory (->complete-path source-dir)])
           (render-through-eval `(begin (require pollen/cache)(cached-require ,source-path ',(world:current-main-export)))))))
 
@@ -235,17 +243,11 @@
           (and (filename-extension output-path) (build-path (world:current-server-extras-path) (add-ext (world:current-fallback-template-prefix) (get-ext output-path)))))))) ; fallback template
 
 
-(define/contract (file-needed-rerequire? source-path)
-  (complete-path? . -> . boolean?)
-  (define-values (source-dir source-name _) (split-path source-path))
+(define/contract+provide (file-needed-rerequire? source-path)
+  (coerce/path? . -> . boolean?) ; coercion because dynamic-rerequire needs real complete-path
   ;; use dynamic-rerequire now to force render for cached-require later,
   ;; otherwise the source file will get cached by compiler
-  (define port-for-catching-file-info (open-output-string))
-  (parameterize ([current-directory source-dir]
-                 [current-error-port port-for-catching-file-info])
-    (dynamic-rerequire source-path))
-  ;; if the file needed to be reloaded, there will be a message in the port
-  (> (len (get-output-string port-for-catching-file-info)) 0))
+  (not (empty? (dynamic-rerequire (->complete-path source-path)))))
 
 
 ;; set up namespace for module caching
@@ -298,7 +300,7 @@
 
 (for-each add-module-to-current-eval-cache initial-modules-to-cache)
 
-
+(require sugar/debug)
 (define/contract (render-through-eval expr-to-eval)
   (list? . -> . (or/c string? bytes?))
   (define cache-ns (car (current-eval-namespace-cache)))
@@ -306,5 +308,6 @@
   (parameterize ([current-namespace (make-base-namespace)]
                  [current-output-port (current-error-port)]
                  [current-pagetree (make-project-pagetree (world:current-project-root))])
+    (report/file (compile-enforce-module-constants))
     (for-each (λ(mod-name) (namespace-attach-module cache-ns mod-name)) cached-modules)   
     (eval expr-to-eval (current-namespace))))

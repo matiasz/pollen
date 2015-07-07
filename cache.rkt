@@ -1,5 +1,5 @@
 #lang racket/base
-(require racket/rerequire racket/serialize racket/file "world.rkt")
+(require racket/serialize racket/file "world.rkt" "rerequire.rkt")
 
 ;; The cache is a hash with paths as keys.
 ;; The cache values are also hashes, with key/value pairs for that path.
@@ -33,7 +33,6 @@
   (hash-has-key? (current-cache) path))
 
 (define (cache path)  
-  (dynamic-rerequire path)
   (hash-set! (current-cache) path (make-hash))
   (define cache-hash (cache-ref path))
   (hash-set! cache-hash 'mod-time (file-or-directory-modify-seconds path))
@@ -51,8 +50,14 @@
   
   (when (not (file-exists? path)) (error (format "cached-require: ~a does not exist" (path->string path))))
   
-  (when (or (not (cache-has-key? path))
-            (> (file-or-directory-modify-seconds path) (hash-ref (cache-ref path) 'mod-time)))
-    (cache path))
+  (cond
+    [(not (cache-has-key? path))
+     (dynamic-rerequire path)
+     (cache path)]
+    [(> (file-or-directory-modify-seconds path) (hash-ref (cache-ref path) 'mod-time))
+     (cache path)])
   
-  (hash-ref (cache-ref path) key))
+  (define result (hash-ref (cache-ref path) key))
+  (unless (world:current-require-cache-active)
+    (reset-cache))
+  result)
