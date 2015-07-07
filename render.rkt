@@ -132,8 +132,8 @@
   
   (or (and (not (file-exists? output-path)) 'output-file-missing)
       (and (apply modification-time-expired? (list* source-path (if template-path
-                                                                            (list template-path)
-                                                                            empty))) 'modification-time-changed)
+                                                                    (list template-path)
+                                                                    empty))) 'modification-time-changed)
       (and (not (null-source? source-path)) (changed-on-rerequire? source-path) 'source-needed-rerequire)))
 
 
@@ -163,7 +163,8 @@
       [else (error (format "render: no rendering function found for ~a" source-path))]))
   
   (message (format "render: ~a" (file-name-from-path source-path)))
-  (dynamic-rerequire source-path)
+  (when (not (null-source? source-path))
+    (dynamic-rerequire source-path))
   (record-modification-time source-path template-path) ; todo?: this may need to go after render
   (apply render-proc (cons source-path (if template-path (list template-path) null))))
 

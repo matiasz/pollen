@@ -58,6 +58,6 @@
      (cache path)])
   
   (define result (hash-ref (cache-ref path) key))
-  (unless (world:current-require-cache-active)
+  #;(unless (world:current-require-cache-active)
     (reset-cache))
   result)
