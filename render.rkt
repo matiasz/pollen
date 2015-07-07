@@ -1,7 +1,7 @@
 #lang racket/base
-(require racket/file racket/path racket/match racket/list)
+(require racket/file racket/path racket/match racket/list racket/string)
 (require sugar/test sugar/define sugar/container sugar/file)
-(require "file.rkt" "cache.rkt" "world.rkt" "debug.rkt" "pagetree.rkt" "project.rkt" "template.rkt" "rerequire.rkt")
+(require "file.rkt" "cache.rkt" "world.rkt" "debug.rkt" "pagetree.rkt" "project.rkt" "template.rkt")
 
 
 ;; when you want to generate everything fresh, 
@@ -59,17 +59,21 @@
  (check-equal? (record-modification-time sample-01 sample-02 sample-03) (void))
  (check-true (hash-has-key? modification-time-hash (list sample-01 sample-02 sample-03))))
 
-
-(define/contract (modification-time-expired? . rest-paths)
+(define/contract (previously-rendered-together? . rest-paths)
   (() #:rest valid-path-args? . ->* . boolean?)
   (define key (make-mod-times-key rest-paths))
-  ;; either no stored mod date, or data has changed
-  (or (not (hash-has-key? modification-time-hash key))
-      (not (equal? (map path->mod-time-value key) (hash-ref modification-time-hash key)))))
+  (hash-has-key? modification-time-hash key))
+
+(require sugar/debug)
+(define/contract (modification-time-changed? . rest-paths)
+  (() #:rest valid-path-args? . ->* . boolean?)
+  (define key (make-mod-times-key rest-paths))
+  (and (apply previously-rendered-together? rest-paths)
+       (not (equal? (map path->mod-time-value key) (hash-ref modification-time-hash key)))))
 
 (module-test-internal
- (check-true (modification-time-expired? sample-01)) ; because key hasn't been stored
- (check-false (apply modification-time-expired? samples))) ; because files weren't changed
+ (check-false (previously-rendered-together? sample-01)) ; because key hasn't been stored
+ (check-false (apply modification-time-changed? samples))) ; because files weren't changed
 
 
 (define (list-of-pathish? x) (and (list? x) (andmap pathish? x)))
@@ -115,33 +119,56 @@
   (file-proc source-or-output-path))
 
 
-(require sugar/debug)
+(define/contract (eligible-for-rerequire? source-path)
+  (complete-path? . -> . boolean?)
+  (not (null-source? source-path))) ; null sources may not have Racket code underneath
+
+(define/contract (rerequire source-path)
+  (complete-path? . -> . (listof path?))
+  (dynamic-rerequire (->complete-path source-path) #:verbosity 'none))
+
+
+(define (make-file-path-key source-path [template-path #f])
+  (append (list source-path)
+          (if template-path
+              (list template-path)
+              empty)
+          (or (and (world:check-directory-requires-in-render?) (get-directory-require-files source-path))
+              empty)))
+
+
 (define/contract+provide (render-needed? source-path [template-path #f] [maybe-output-path #f])
   ((complete-path?) ((or/c #f complete-path?) (or/c #f complete-path?)) . ->* . (or/c #f symbol?))
   (define output-path (or maybe-output-path (->output-path source-path)))
-  (when (world:check-directory-requires-in-render?)
-    (define directory-require-files (get-directory-require-files source-path))
-    (cond
-      [(not (hash-has-key? modification-time-hash (make-mod-times-key directory-require-files)))
-       (apply record-modification-time directory-require-files)]
-      [(apply modification-time-expired? directory-require-files)
-       (message "render: directory require files have changed. Resetting cache & file-modification table")
-       (reset-cache) ; because stored data is obsolete
-       (reset-modification-times) ; this will mark all previously-rendered source files for refresh
-       (apply record-modification-time directory-require-files)])) ; put mod-time for dr back into table for later
+  #;(when (world:check-directory-requires-in-render?)
+      (define directory-require-files (get-directory-require-files source-path))
+      (and directory-require-files
+           (let ([dr-key (make-mod-times-key directory-require-files)])
+             (cond
+               [(not (hash-has-key? modification-time-hash dr-key))
+                (apply record-modification-time dr-key)]
+               [(apply modification-time-changed? dr-key)
+                (message "render: directory require files have changed. Resetting cache & file-modification table")
+                (reset-cache) ; because stored data is obsolete
+                (reset-modification-times) ; this will mark all previously-rendered source files for refresh
+                (apply record-modification-time dr-key)])))) ; put mod-time for dr back into table for later
   
+  
+  (define file-paths (make-file-path-key source-path template-path))
   (or (and (not (file-exists? output-path)) 'output-file-missing)
-      (and (apply modification-time-expired? (list* source-path (if template-path
-                                                                    (list template-path)
-                                                                    empty))) 'modification-time-changed)
-      (and (not (null-source? source-path)) (changed-on-rerequire? source-path) 'source-needed-rerequire)))
+      (and (not (apply previously-rendered-together? file-paths)) 'not-refreshed-this-session)
+      (and (apply modification-time-changed? file-paths) 'modification-time-changed)
+      (and (eligible-for-rerequire? source-path) (changed-on-rerequire? source-path) 'source-needed-rerequire)))
 
 
 (define/contract+provide (render-to-file-if-needed source-path [template-path #f] [maybe-output-path #f] #:force [force #f])
   ((complete-path?) ((or/c #f complete-path?) (or/c #f complete-path?) #:force boolean?) . ->* . void?)  
   (define output-path (or maybe-output-path (->output-path source-path)))
   (define template-path (get-template-for source-path))
-  (when (or force (render-needed? source-path template-path output-path))
+  (define reason-to-render (or (and force 'render-forced)
+                               (render-needed? source-path template-path output-path)))
+  (when reason-to-render
+    (message (format "rendering ~a because ~a" (find-relative-path (world:current-project-root) source-path) (string-replace (symbol->string reason-to-render) "-" " ")))
     (render-to-file source-path template-path output-path)))
 
 
@@ -163,16 +190,15 @@
       [else (error (format "render: no rendering function found for ~a" source-path))]))
   
   (message (format "render: ~a" (file-name-from-path source-path)))
-  (when (not (null-source? source-path))
-    (dynamic-rerequire source-path))
-  (record-modification-time source-path template-path) ; todo?: this may need to go after render
-  (apply render-proc (cons source-path (if template-path (list template-path) null))))
+  (when (eligible-for-rerequire? source-path) (rerequire source-path))
+  (apply record-modification-time (make-file-path-key source-path template-path)) 
+  (apply render-proc (list* source-path (if template-path (list template-path) empty))))
 
 
 (define/contract (render-null-source source-path)
   (complete-path? . -> . bytes?)
   ;; All this does is copy the source. Hence, "null".
-  ;; todo: add test to avoid copying if unnecessary (good idea in case the file is large)
+  (record-modification-time source-path)
   (file->bytes source-path))
 
 
@@ -241,10 +267,10 @@
 
 
 (define/contract+provide (changed-on-rerequire? source-path)
-  (coerce/path? . -> . boolean?) ; coercion because dynamic-rerequire needs real complete-path
+  (complete-path? . -> . boolean?) ; coercion because dynamic-rerequire needs real complete-path
   ;; use dynamic-rerequire now to force render for cached-require later,
   ;; otherwise the source file will get cached by compiler
-  (not (empty? (dynamic-rerequire (->complete-path source-path)))))
+  (not (empty? (rerequire source-path))))
 
 
 ;; set up namespace for module caching

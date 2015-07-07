@@ -5,6 +5,7 @@
 ;; The cache values are also hashes, with key/value pairs for that path.
 
 (provide reset-cache current-cache make-cache cached-require cache-ref)
+(provide (all-from-out "rerequire.rkt"))
 
 (define (get-cache-file-path)
   (build-path (world:current-project-root) (world:current-cache-filename)))
@@ -32,7 +33,8 @@
 (define (cache-has-key? path)
   (hash-has-key? (current-cache) path))
 
-(define (cache path)  
+(define (cache path)
+  (dynamic-rerequire path)
   (hash-set! (current-cache) path (make-hash))
   (define cache-hash (cache-ref path))
   (hash-set! cache-hash 'mod-time (file-or-directory-modify-seconds path))
@@ -42,22 +44,16 @@
   (void))
 
 (define (cached-require path-string key)
-  (when (not (current-cache)) (error 'cached-require "No cache set up."))
-  
-  (define path 
-    (with-handlers ([exn:fail? (λ(exn) (error 'cached-require (format "~a is not a valid path" path-string)))])
-      (->complete-path path-string)))  
-  
-  (when (not (file-exists? path)) (error (format "cached-require: ~a does not exist" (path->string path))))
-  
+  (define path (with-handlers ([exn:fail? (λ(exn) (error 'cached-require (format "~a is not a valid path" path-string)))])
+                 (->complete-path path-string)))
   (cond
-    [(not (cache-has-key? path))
+    [(world:current-require-cache-active)
+     (when (not (current-cache)) (error 'cached-require "No cache set up."))
+     (when (not (file-exists? path)) (error (format "cached-require: ~a does not exist" (path->string path))))
+     (when (or (not (cache-has-key? path))
+               (> (file-or-directory-modify-seconds path) (hash-ref (cache-ref path) 'mod-time)))
+       (cache path))
+     (hash-ref (cache-ref path) key)]
+    [else
      (dynamic-rerequire path)
-     (cache path)]
-    [(> (file-or-directory-modify-seconds path) (hash-ref (cache-ref path) 'mod-time))
-     (cache path)])
-  
-  (define result (hash-ref (cache-ref path) key))
-  #;(unless (world:current-require-cache-active)
-    (reset-cache))
-  result)
+     (dynamic-require path key)]))

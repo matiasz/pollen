@@ -31,6 +31,8 @@
   (parameterize ([error-print-width 1000]
                  [current-cache (make-cache)])
     (serve/servlet pollen-servlet
+                   #:connection-close? #t
+                   #:stateless? #t
                    #:port (world:current-server-port)
                    #:listen-ip #f
                    #:servlet-regexp #rx"" ; respond to top level
