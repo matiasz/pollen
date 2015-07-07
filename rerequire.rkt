@@ -22,9 +22,7 @@ and Pollen uses a ton of `dynamic-rerequire`.
 
 (define loaded (make-hash))
 
-(require sugar/debug)
 (define (rerequire mod verbosity)
-  (report mod 'rerequiring:)
   (define loaded-paths '())
   (define (collect-loaded-path! path) (set! loaded-paths (cons path loaded-paths)))
   ;; Collect dependencies while loading:

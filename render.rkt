@@ -6,16 +6,16 @@
 
 ;; when you want to generate everything fresh, 
 ;; but without having to #:force everything.
-;; render functions will always go when no mod-date is found.
-(define (reset-modification-dates)
-  (set! modification-date-hash (make-hash)))
+;; render functions will always go when no mod-time is found.
+(define (reset-modification-times)
+  (set! modification-time-hash (make-hash)))
 
-;; mod-dates is a hash that takes lists of paths as keys,
+;; mod-times is a hash that takes lists of paths as keys,
 ;; and lists of modification times as values.
-(define modification-date-hash #f)
-(reset-modification-dates)
+(define modification-time-hash #f)
+(reset-modification-times)
 (module-test-internal
- (check-pred hash? modification-date-hash))
+ (check-pred hash? modification-time-hash))
 
 ;; using internal contracts to provide some extra safety (negligible performance hit)
 
@@ -28,7 +28,7 @@
   (and (list? x) (andmap valid-path-arg? x)))
 
 
-(define/contract (make-mod-dates-key paths)
+(define/contract (make-mod-times-key paths)
   (valid-path-args? . -> . valid-path-args?)
   paths) ; for now, this does nothing; maybe later, it will do more
 
@@ -38,39 +38,38 @@
  (define samples (parameterize ([current-directory sample-dir])
                    (map path->complete-path (directory-list "."))))
  (define-values (sample-01 sample-02 sample-03) (apply values samples))
- (check-equal? (make-mod-dates-key samples) samples))
+ (check-equal? (make-mod-times-key samples) samples))
 
 
-(define/contract (path->mod-date-value path)
+(define/contract (path->mod-time-value path)
   ((or/c #f complete-path?) . -> . (or/c #f integer?))
   (and path (file-exists? path) (file-or-directory-modify-seconds path)))
 
 (module-test-internal
- (check-false (path->mod-date-value (path->complete-path "garbage-path.zzz")))
- (check-equal? (path->mod-date-value sample-01) (file-or-directory-modify-seconds sample-01)))
+ (check-false (path->mod-time-value (path->complete-path "garbage-path.zzz")))
+ (check-equal? (path->mod-time-value sample-01) (file-or-directory-modify-seconds sample-01)))
 
 
-(define/contract (store-render-in-modification-dates . rest-paths)
+(define/contract (record-modification-time . rest-paths)
   (() #:rest valid-path-args? . ->* . void?)
-  (define key (make-mod-dates-key rest-paths))
-  (hash-set! modification-date-hash key (map path->mod-date-value key)))
+  (define key (make-mod-times-key rest-paths))
+  (hash-set! modification-time-hash key (map path->mod-time-value key)))
 
 (module-test-internal
- (check-equal? (store-render-in-modification-dates sample-01 sample-02 sample-03) (void))
- (check-true (hash-has-key? modification-date-hash (list sample-01 sample-02 sample-03))))
+ (check-equal? (record-modification-time sample-01 sample-02 sample-03) (void))
+ (check-true (hash-has-key? modification-time-hash (list sample-01 sample-02 sample-03))))
 
 
-(define/contract (modification-date-expired? . rest-paths)
+(define/contract (modification-time-expired? . rest-paths)
   (() #:rest valid-path-args? . ->* . boolean?)
-  (define key (make-mod-dates-key rest-paths))
+  (define key (make-mod-times-key rest-paths))
   ;; either no stored mod date, or data has changed
-  (and (world:current-render-cache-active)
-       (or (not (key . in? . modification-date-hash)) 
-           (not (equal? (map path->mod-date-value key) (get modification-date-hash key))))))
+  (or (not (hash-has-key? modification-time-hash key))
+      (not (equal? (map path->mod-time-value key) (hash-ref modification-time-hash key)))))
 
 (module-test-internal
- (check-true (modification-date-expired? sample-01)) ; because key hasn't been stored
- (check-false (apply modification-date-expired? samples))) ; because files weren't changed
+ (check-true (modification-time-expired? sample-01)) ; because key hasn't been stored
+ (check-false (apply modification-time-expired? samples))) ; because files weren't changed
 
 
 (define (list-of-pathish? x) (and (list? x) (andmap pathish? x)))
@@ -80,8 +79,8 @@
   ;; Why not just (map render ...)?
   ;; Because certain files will pass through multiple times (e.g., templates)
   ;; And with render, they would be rendered repeatedly.
-  ;; Using reset-modification-dates is sort of like session control.
-  (reset-modification-dates) 
+  ;; Using reset-modification-times is sort of like session control.
+  (reset-modification-times) 
   (for-each (λ(x) ((if (pagetree-source? x)
                        render-pagetree
                        render-from-source-or-output-path) x)) xs))
@@ -116,28 +115,26 @@
   (file-proc source-or-output-path))
 
 
-(define (directory-requires-changed? source-path)
-  (define directory-require-files (get-directory-require-files source-path))
-  (and directory-require-files
-       (let* ([rerequire-results (map file-needed-rerequire? directory-require-files)]
-              [requires-changed? (ormap (λ(x) x) rerequire-results)])
-         (when requires-changed?
-           (begin
-             (message "render: directory require files have changed. Resetting cache & file-modification table")
-             (reset-cache) ; because stored data is obsolete
-             (reset-modification-dates))) ; because rendered files are obsolete
-         requires-changed?)))
-
 (require sugar/debug)
 (define/contract+provide (render-needed? source-path [template-path #f] [maybe-output-path #f])
   ((complete-path?) ((or/c #f complete-path?) (or/c #f complete-path?)) . ->* . (or/c #f symbol?))
   (define output-path (or maybe-output-path (->output-path source-path)))
+  (when (world:check-directory-requires-in-render?)
+    (define directory-require-files (get-directory-require-files source-path))
+    (cond
+      [(not (hash-has-key? modification-time-hash (make-mod-times-key directory-require-files)))
+       (apply record-modification-time directory-require-files)]
+      [(apply modification-time-expired? directory-require-files)
+       (message "render: directory require files have changed. Resetting cache & file-modification table")
+       (reset-cache) ; because stored data is obsolete
+       (reset-modification-times) ; this will mark all previously-rendered source files for refresh
+       (apply record-modification-time directory-require-files)])) ; put mod-time for dr back into table for later
+  
   (or (and (not (file-exists? output-path)) 'output-file-missing)
-      (and (if template-path
-               (modification-date-expired? source-path template-path)
-               (modification-date-expired? source-path)) 'modification-date-changed)
-      (and (not (null-source? source-path)) (file-needed-rerequire? source-path) 'source-needed-rerequire)
-      (and (world:check-directory-requires-in-render?) (directory-requires-changed? source-path) 'directory-requires-changed)))
+      (and (apply modification-time-expired? (list* source-path (if template-path
+                                                                            (list template-path)
+                                                                            empty))) 'modification-time-changed)
+      (and (not (null-source? source-path)) (changed-on-rerequire? source-path) 'source-needed-rerequire)))
 
 
 (define/contract+provide (render-to-file-if-needed source-path [template-path #f] [maybe-output-path #f] #:force [force #f])
@@ -166,8 +163,8 @@
       [else (error (format "render: no rendering function found for ~a" source-path))]))
   
   (message (format "render: ~a" (file-name-from-path source-path)))
-  (void (file-needed-rerequire? source-path)) ; put file into rerequire memory
-  (store-render-in-modification-dates source-path template-path) ; todo?: this may need to go after render
+  (dynamic-rerequire source-path)
+  (record-modification-time source-path template-path) ; todo?: this may need to go after render
   (apply render-proc (cons source-path (if template-path (list template-path) null))))
 
 
@@ -181,7 +178,6 @@
 (define/contract (render-scribble-source source-path)
   (complete-path? . -> . string?)
   (match-define-values (source-dir _ _) (split-path source-path))
-  (file-needed-rerequire? source-path) ; called for its reqrequire side effect only, so dynamic-require below isn't cached
   (time (parameterize ([current-directory (->complete-path source-dir)])
           ;; BTW this next action has side effects: scribble will copy in its core files if they don't exist.
           ((dynamic-require 'scribble/render 'render) (list (dynamic-require source-path (world:current-main-export))) (list source-path))))
@@ -193,7 +189,7 @@
 (define/contract (render-preproc-source source-path)
   (complete-path? . -> . (or/c string? bytes?))
   (match-define-values (source-dir _ _) (split-path source-path))
-  (store-render-in-modification-dates source-path)
+  (record-modification-time source-path)
   (time (parameterize ([current-directory (->complete-path source-dir)])
           (render-through-eval `(begin (require pollen/cache)(cached-require ,source-path ',(world:current-main-export)))))))
 
@@ -243,7 +239,7 @@
           (and (filename-extension output-path) (build-path (world:current-server-extras-path) (add-ext (world:current-fallback-template-prefix) (get-ext output-path)))))))) ; fallback template
 
 
-(define/contract+provide (file-needed-rerequire? source-path)
+(define/contract+provide (changed-on-rerequire? source-path)
   (coerce/path? . -> . boolean?) ; coercion because dynamic-rerequire needs real complete-path
   ;; use dynamic-rerequire now to force render for cached-require later,
   ;; otherwise the source file will get cached by compiler
@@ -277,7 +273,6 @@
                                    racket/format
                                    racket/function
                                    racket/port 
-                                   pollen/rerequire 
                                    racket/list
                                    racket/match
                                    racket/string
@@ -290,6 +285,7 @@
                                    pollen/main
                                    pollen/reader-base
                                    pollen/pagetree
+                                   pollen/rerequire 
                                    pollen/tag
                                    pollen/template
                                    pollen/world
@@ -307,7 +303,6 @@
   (define cached-modules (cdr (current-eval-namespace-cache)))
   (parameterize ([current-namespace (make-base-namespace)]
                  [current-output-port (current-error-port)]
-                 [current-pagetree (make-project-pagetree (world:current-project-root))]
-                 [compile-enforce-module-constants #f])
+                 [current-pagetree (make-project-pagetree (world:current-project-root))])
     (for-each (λ(mod-name) (namespace-attach-module cache-ns mod-name)) cached-modules)   
     (eval expr-to-eval (current-namespace))))
