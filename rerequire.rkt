@@ -38,28 +38,28 @@ and Pollen uses a ton of `dynamic-rerequire`.
 (define (rerequire-load/use-compiled orig re? verbosity path-collector)
   (define notify
     (if (or (eq? 'all verbosity) (and re? (eq? 'reload verbosity)))
-      (lambda (path)
-        (eprintf "  [~aloading ~a]\n" (if re? "re-" "") path)
+      (λ(path)
+        (eprintf "~aloading ~a from source\n" (if re? "re-" "") path)
         (path-collector path))
       path-collector))
-  (lambda (path name)
+  (λ(path name)
     (if (and name
              (not (and (pair? name)
                        (not (car name)))))
         ;; Module load:
-        (with-handlers ([(lambda (exn)
+        (with-handlers ([(λ(exn)
                            (and (pair? name)
                                 (exn:get-module-code? exn)))
-                         (lambda (exn) 
+                         (λ(exn) 
                            ;; Load-handler protocol: quiet failure when a
                            ;; submodule is not found
                            (void))])
           (let* ([code (get-module-code
                         path "compiled"
-                        (lambda (e)
+                        (λ(e)
                           (parameterize ([compile-enforce-module-constants #f])
                             (compile e)))
-                        (lambda (ext loader?) (load-extension ext) #f)
+                        (λ(ext loader?) (load-extension ext) #f)
                         #:notify notify)]
                  [dir  (or (current-load-relative-directory) (current-directory))]
                  [path (path->complete-path path dir)]
@@ -80,12 +80,12 @@ and Pollen uses a ton of `dynamic-rerequire`.
       (begin (notify path) (orig path name)))))
 
 (define (get-timestamp path)
-  (let ([ts (file-or-directory-modify-seconds path #f (lambda () #f))])
+  (let ([ts (file-or-directory-modify-seconds path #f (λ _ #f))])
     (if ts
         (values ts path)
         (if (regexp-match? #rx#"[.]rkt$" (path->bytes path))
             (let* ([alt-path (path-replace-suffix path #".ss")]
-                   [ts (file-or-directory-modify-seconds alt-path #f (lambda () #f))])
+                   [ts (file-or-directory-modify-seconds alt-path #f (λ _ #f))])
               (if ts
                   (values ts alt-path)
                   (values -inf.0 path)))

@@ -1,5 +1,5 @@
 #lang racket/base
-(require racket/serialize racket/file "world.rkt" "rerequire.rkt")
+(require racket/serialize racket/file "world.rkt" "rerequire.rkt" "debug.rkt")
 
 ;; The cache is a hash with paths as keys.
 ;; The cache values are also hashes, with key/value pairs for that path.
@@ -16,7 +16,7 @@
       (deserialize (file->value cache-file-path))
       (make-hash)))
 
-(define current-cache (make-parameter (make-cache)))
+(define current-cache (make-parameter #f))
 
 (define (reset-cache)
   (define cache-path (get-cache-file-path))
@@ -33,7 +33,7 @@
 (define (cache-has-key? path)
   (hash-has-key? (current-cache) path))
 
-(define (cache path)
+(define (add-path-to-cache path)
   (dynamic-rerequire path)
   (hash-set! (current-cache) path (make-hash))
   (define cache-hash (cache-ref path))
@@ -44,16 +44,22 @@
   (void))
 
 (define (cached-require path-string key)
+  (message (format "cache keys: ~a" (hash-keys (current-cache))))
+  (message (format "cache kvs: ~a" (hash->list (current-cache))))
   (define path (with-handlers ([exn:fail? (λ(exn) (error 'cached-require (format "~a is not a valid path" path-string)))])
                  (->complete-path path-string)))
   (cond
     [(world:current-require-cache-active)
      (when (not (current-cache)) (error 'cached-require "No cache set up."))
      (when (not (file-exists? path)) (error (format "cached-require: ~a does not exist" (path->string path))))
-     (when (or (not (cache-has-key? path))
-               (> (file-or-directory-modify-seconds path) (hash-ref (cache-ref path) 'mod-time)))
-       (cache path))
+     (define reason-to-add-path (or (and (not (cache-has-key? path)) 'path-not-in-cache)
+                                    (and (> (file-or-directory-modify-seconds path) (hash-ref (cache-ref path) 'mod-time)) 'mod-time-changed)))
+     (cond
+       [reason-to-add-path
+       (message (format "adding ~a to cache because ~a" path reason-to-add-path)) 
+       (add-path-to-cache path)]
+       [else (message (format "using cached version of ~a" path))])
      (hash-ref (cache-ref path) key)]
-    [else
+    [else ; cache inactive
      (dynamic-rerequire path)
      (dynamic-require path key)]))

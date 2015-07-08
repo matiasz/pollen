@@ -66,10 +66,11 @@
 
 (require sugar/debug)
 (define/contract (modification-time-changed? . rest-paths)
-  (() #:rest valid-path-args? . ->* . boolean?)
+  (() #:rest valid-path-args? . ->* . coerce/boolean?)
   (define key (make-mod-times-key rest-paths))
-  (and (apply previously-rendered-together? rest-paths)
-       (not (equal? (map path->mod-time-value key) (hash-ref modification-time-hash key)))))
+  (define result (and (apply previously-rendered-together? rest-paths)
+                      (ormap (λ(kv hv rp) (and (not (equal? kv hv)) (list rp kv hv))) (map path->mod-time-value key) (hash-ref modification-time-hash key) rest-paths)))
+  (and result (message (format "modification-time for ~a changed: was ~a now ~a" (first result) (second result) (third result))) result))
 
 (module-test-internal
  (check-false (previously-rendered-together? sample-01)) ; because key hasn't been stored
@@ -140,18 +141,18 @@
 (define/contract+provide (render-needed? source-path [template-path #f] [maybe-output-path #f])
   ((complete-path?) ((or/c #f complete-path?) (or/c #f complete-path?)) . ->* . (or/c #f symbol?))
   (define output-path (or maybe-output-path (->output-path source-path)))
-  #;(when (world:check-directory-requires-in-render?)
-      (define directory-require-files (get-directory-require-files source-path))
-      (and directory-require-files
-           (let ([dr-key (make-mod-times-key directory-require-files)])
-             (cond
-               [(not (hash-has-key? modification-time-hash dr-key))
-                (apply record-modification-time dr-key)]
-               [(apply modification-time-changed? dr-key)
-                (message "render: directory require files have changed. Resetting cache & file-modification table")
-                (reset-cache) ; because stored data is obsolete
-                (reset-modification-times) ; this will mark all previously-rendered source files for refresh
-                (apply record-modification-time dr-key)])))) ; put mod-time for dr back into table for later
+  (when (world:check-directory-requires-in-render?)
+    (define directory-require-files (get-directory-require-files source-path))
+    (and directory-require-files
+         (let ([dr-key (make-mod-times-key directory-require-files)])
+           (cond
+             [(not (hash-has-key? modification-time-hash dr-key))
+              (apply record-modification-time dr-key)]
+             [(apply modification-time-changed? dr-key)
+              (message "render: directory require files have changed. Resetting cache & file-modification table")
+              (reset-cache) ; because stored data is obsolete
+              (reset-modification-times) ; this will mark all previously-rendered source files for refresh
+              (apply record-modification-time dr-key)])))) ; put mod-time for dr back into table for later
   
   
   (define file-paths (make-file-path-key source-path template-path))
@@ -258,6 +259,7 @@
                  (filter (λ(x) (->boolean x)) ; if any of the possibilities below are invalid, they return #f 
                          (list                     
                           (parameterize ([current-directory (world:current-project-root)])
+                            (message "boingo")
                             (let ([source-metas (cached-require source-path (world:current-meta-export))])
                               (and ((->symbol (world:current-template-meta-key)) . in? . source-metas)
                                    (build-path source-dir (select-from-metas (->string (world:current-template-meta-key)) source-metas))))) ; path based on metas
