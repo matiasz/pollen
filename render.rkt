@@ -331,7 +331,7 @@
   (define cache-ns (car (current-eval-namespace-cache)))
   (define cached-modules (cdr (current-eval-namespace-cache)))
   (parameterize ([current-namespace (make-base-namespace)]
-                 [current-output-port (current-error-port)]
+                 #;[current-output-port (current-error-port)]
                  [current-pagetree (make-project-pagetree (world:current-project-root))])
     (for-each (λ(mod-name) (namespace-attach-module cache-ns mod-name)) cached-modules)   
     (eval expr-to-eval (current-namespace))))

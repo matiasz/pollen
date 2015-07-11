@@ -2,24 +2,19 @@
 ;; case3: cross-referenced pages
 (require pollen/render sugar pollen/cache rackunit racket/file pollen/world racket/serialize)
 
-(define (touch ps) (display-to-file (file->string ps) ps #:exists 'replace))
-(define dr-path "directory-require.rkt")
 (define (make-dr arg)
+  (define dr-path "directory-require.rkt")
   (display-to-file (format "#lang racket/base
 (provide do)
 (define (do) ~v)" arg) dr-path #:exists 'replace))
 
-(current-output-port (open-output-string))
-
-
 (current-cache (make-hash))
 (make-dr "first-dr")
+(sleep 5)
 (render-to-file (->complete-path "one.html.pm"))
 (report (hash-ref (hash-ref (current-cache) (->complete-path "one.html.pm")) 'doc) 'c)
 (check-false (regexp-match #rx"second-dr" (file->string "one.html")))
-(make-dr "second-dr")  
-
-
+;(make-dr "second-dr")  
 
 
 

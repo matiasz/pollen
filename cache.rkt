@@ -13,7 +13,10 @@
 (define (make-cache) 
   (define cache-path (get-cache-file-path))
   (if (file-exists? cache-path)
-      (deserialize (file->value cache-path))
+      (let ()
+        (define hash-from-file (deserialize (file->value cache-path)))
+        (message (format "got hash from file: ~a" hash-from-file))
+        hash-from-file)
       (make-hash)))
 
 (define current-cache (make-parameter #f))
@@ -56,7 +59,7 @@
        [reason-to-add-path
        (message (format "adding ~a to cache because ~a" path reason-to-add-path)) 
        (add-path-to-cache path)]
-       [else (message (format "using cached version of ~a" path))])
+       [else (message (format "using cached version of ~a because it's in cache: ~a" path (current-cache)))])
      (hash-ref (cache-ref path) key)]
     [else ; cache inactive
      (dynamic-rerequire path)
