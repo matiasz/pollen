@@ -44,7 +44,7 @@
   (void))
 
 (define (cached-require path-string key)
-  (message (format "cache kvs: ~a" (and (current-cache) (hash->list (current-cache)))))
+  #;(message (format "cache kvs: ~a" (current-cache)))
   (define path (with-handlers ([exn:fail? (λ(exn) (error 'cached-require (format "~a is not a valid path" path-string)))])
                  (->complete-path path-string)))
   (cond

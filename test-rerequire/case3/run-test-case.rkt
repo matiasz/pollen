@@ -15,6 +15,7 @@
 (current-cache (make-hash))
 (make-dr "first-dr")
 (render-to-file (->complete-path "one.html.pm"))
+(report (hash-ref (hash-ref (current-cache) (->complete-path "one.html.pm")) 'doc) 'c)
 (check-false (regexp-match #rx"second-dr" (file->string "one.html")))
 (make-dr "second-dr")  
 
