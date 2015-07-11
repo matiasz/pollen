@@ -1,0 +1,3 @@
+◊(define my-page (or (previous here) (next here)))
+◊(local-require racket/format)
+◊(map ~a (list doc " " (select 'id my-page)))

@@ -1,4 +1,5 @@
 #lang racket
+;; case1: require cache active
 (require pollen/render sugar pollen/cache rackunit racket/file)
 
 (define (touch ps) (display-to-file (file->string ps) ps #:exists 'replace))
@@ -11,7 +12,6 @@
 
 (when (file-exists? "pollen.cache") (delete-file "pollen.cache"))
 (parameterize ([current-cache (make-cache)]
-               [current-error-port (open-output-string)]
                [current-output-port (open-output-string)])
   (make-dr "first-dr")
   (reset-cache)

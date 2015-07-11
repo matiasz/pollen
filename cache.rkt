@@ -11,9 +11,9 @@
   (build-path (world:current-project-root) (world:current-cache-filename)))
 
 (define (make-cache) 
-  (define cache-file-path (get-cache-file-path))
-  (if (file-exists? cache-file-path)
-      (deserialize (file->value cache-file-path))
+  (define cache-path (get-cache-file-path))
+  (if (file-exists? cache-path)
+      (deserialize (file->value cache-path))
       (make-hash)))
 
 (define current-cache (make-parameter #f))
@@ -44,13 +44,11 @@
   (void))
 
 (define (cached-require path-string key)
-  (message (format "cache keys: ~a" (hash-keys (current-cache))))
-  (message (format "cache kvs: ~a" (hash->list (current-cache))))
+  (message (format "cache kvs: ~a" (and (current-cache) (hash->list (current-cache)))))
   (define path (with-handlers ([exn:fail? (λ(exn) (error 'cached-require (format "~a is not a valid path" path-string)))])
                  (->complete-path path-string)))
   (cond
-    [(world:current-require-cache-active)
-     (when (not (current-cache)) (error 'cached-require "No cache set up."))
+    [(and (world:current-require-cache-active) (current-cache))
      (when (not (file-exists? path)) (error (format "cached-require: ~a does not exist" (path->string path))))
      (define reason-to-add-path (or (and (not (cache-has-key? path)) 'path-not-in-cache)
                                     (and (> (file-or-directory-modify-seconds path) (hash-ref (cache-ref path) 'mod-time)) 'mod-time-changed)))
