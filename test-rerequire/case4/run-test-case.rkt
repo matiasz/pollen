@@ -17,4 +17,4 @@
 ;; this will error: rerequire should transitively reload "two.rkt", but doesn't
 (check-false (empty? (dynamic-rerequire "one.rkt"))) 
 
-
+(map (λ(mpis) (map mpi->path mpis)) (map mod-depends (filter mod? (flatten (hash->list loaded)))))

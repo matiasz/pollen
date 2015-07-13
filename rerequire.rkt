@@ -22,6 +22,9 @@ and Pollen uses a ton of `dynamic-rerequire`.
 (struct mod (name timestamp depends) #:transparent)
 
 (define loaded (make-hash))
+(define mpi->path (compose1 resolved-module-path-name module-path-index-resolve))
+
+(provide loaded mod mod-depends mod? mpi->path)
 
 (define (rerequire mod verbosity)
   (define loaded-paths '())
