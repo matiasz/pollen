@@ -125,5 +125,5 @@ and Pollen uses a ton of `dynamic-rerequire`.
                 path (mod-name mod))))))]
       [(submodule-path? path-or-submodule-path)
        (define submodule-path path-or-submodule-path)
-       #;(loop (module-path-index-join #f #f submodule-path))
+       #;(report* submodule-path (module->imports (module-path-index-join #f #f submodule-path)))
        (void)])))
