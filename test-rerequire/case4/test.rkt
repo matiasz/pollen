@@ -2,7 +2,7 @@
 
 (module inner racket/base
   (require "two.rkt")
-  (provide do))
+  (provide proc))
 
 (require 'inner)
-(provide do)
+(provide proc)

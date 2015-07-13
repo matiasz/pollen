@@ -28,7 +28,7 @@
                         ;; Change behavior of undefined identifiers with #%top
                         ;; Get project values from world
                         (require pollen/top pollen/world)
-                        (provide (all-defined-out) (all-from-out pollen/top pollen/world))
+                        (provide (all-from-out pollen/top pollen/world))
                         
                         body-exprs (... ...))
                       

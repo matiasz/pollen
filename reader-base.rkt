@@ -18,16 +18,16 @@
                         #:syntax? #t 
                         #:inside? #t))
     (define file-contents-stx (read-inner src in))
-    (syntax-parse file-contents-stx
+    (syntax-case file-contents-stx ()
       [(body ...)
-       #:with my-reader-mode (format-symbol "~a" reader-mode)
-       #:with my-reader-here-path (cond [(symbol? src) (symbol->string src)]
+       (with-syntax
+       ([my-reader-mode (format-symbol "~a" reader-mode)]
+       [my-reader-here-path (cond [(symbol? src) (symbol->string src)]
                                         [(equal? src "unsaved editor") src]
-                                        [else (path->string src)])
-       #:with r+p-d-r-f (datum->syntax file-contents-stx (require+provide-directory-require-files src))
-       #:with main-export (format-id file-contents-stx "~a" (world:current-main-export))
-       #'(module repl-wrapper racket/base
-           (module pollen-lang-module pollen
+                                        [else (path->string src)])]
+       [r+p-d-r-f (datum->syntax file-contents-stx (require+provide-directory-require-files src))]
+       [main-export (format-id file-contents-stx "~a" (world:current-main-export))])
+       #'(module pollen-lang-module pollen
              (define reader-mode 'my-reader-mode)
              (define reader-here-path my-reader-here-path)
              (define parser-mode
@@ -48,15 +48,7 @@
                       (prefix-out inner: parser-mode)) 
              
              r+p-d-r-f
-             body ...)
-           (require 'pollen-lang-module)
-           (provide (all-from-out 'pollen-lang-module))
-           (module+ main
-             (require txexpr racket/string)
-             (if (or (equal? inner:parser-mode world:mode-preproc) (equal? inner:parser-mode world:mode-template))
-                 (display main-export)
-                 (print (with-handlers ([exn:fail? (λ(exn) ((error 'pollen-markup-error (string-join (cdr (string-split (exn-message exn) ": ")) ": "))))])
-                          (validate-txexpr main-export))))))])))
+             body ...))])))
 
 
 (define-syntax-rule (define+provide-reader-in-mode mode)

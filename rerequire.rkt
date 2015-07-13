@@ -19,7 +19,7 @@ and Pollen uses a ton of `dynamic-rerequire`.
     (raise-argument-error 'dynamic-rerequire "(or/c 'all 'reload 'none)" verbosity))
   (rerequire mod verbosity))
 
-(struct mod (name timestamp depends))
+(struct mod (name timestamp depends) #:transparent)
 
 (define loaded (make-hash))
 
@@ -32,7 +32,6 @@ and Pollen uses a ton of `dynamic-rerequire`.
                                                #f verbosity collect-loaded-path!)])
     (dynamic-require mod 0))
   ;; Reload anything that's not up to date:
-  (report* mod loaded)
   (check-latest mod verbosity collect-loaded-path!)
   ;; Return a list of the paths that were loaded this time, in order:
   (reverse loaded-paths))
@@ -40,11 +39,12 @@ and Pollen uses a ton of `dynamic-rerequire`.
 (define (rerequire-load/use-compiled orig re? verbosity path-collector)
   (define notify
     (if (or (eq? 'all verbosity) (and re? (eq? 'reload verbosity)))
-      (λ(path)
-        (eprintf "~aloading ~a from source\n" (if re? "re" "") path)
-        (path-collector path))
-      path-collector))
+        (λ(path)
+          (eprintf "~aloading ~a from source\n" (if re? "re" "") path)
+          (path-collector path))
+        path-collector))
   (λ(path name)
+    (report path 'path-being-loaded)
     (if (and name
              (not (and (pair? name)
                        (not (car name)))))
@@ -78,8 +78,8 @@ and Pollen uses a ton of `dynamic-rerequire`.
             ;; Evaluate the module:
             (parameterize ([current-module-declare-source actual-path])
               (eval code))))
-      ;; Not a module, or a submodule that we shouldn't load from source:
-      (begin (notify path) (orig path name)))))
+        ;; Not a module, or a submodule that we shouldn't load from source:
+        (begin (notify path) (orig path name)))))
 
 (define (get-timestamp path)
   (let ([ts (file-or-directory-modify-seconds path #f (λ _ #f))])
@@ -93,27 +93,34 @@ and Pollen uses a ton of `dynamic-rerequire`.
                   (values -inf.0 path)))
             (values -inf.0 path)))))
 
+(define submodule-path? list?)
+(require describe)
+
 (define (check-latest mod verbosity path-collector)
+  (report loaded)
   (define mpi (module-path-index-join mod #f))
   (define done (make-hash))
   (let loop ([mpi mpi])
     (define rpath (module-path-index-resolve mpi))
-    (define path (let ([p (resolved-module-path-name rpath)])
-                   (if (pair? p) (car p) p)))
-    (report path)
-    (when (path? path)
-      (define npath (normal-case-path path))
-      (unless (hash-ref done npath #f)
-        (hash-set! done npath #t)
-        (define mod (hash-ref loaded npath #f))
-        (when mod
-          (for-each loop (mod-depends mod))
-          (define-values (ts actual-path) (get-timestamp npath))
-          (when (ts . > . (mod-timestamp mod))
-            (define orig (current-load/use-compiled))
-            (parameterize ([current-load/use-compiled
-                            (rerequire-load/use-compiled orig #f verbosity path-collector)]
-                           [current-module-declare-name rpath]
-                           [current-module-declare-source actual-path])
-              ((rerequire-load/use-compiled orig #t verbosity path-collector)
-               npath (mod-name mod)))))))))
+    (define path-or-submodule-path (resolved-module-path-name rpath))
+    (cond
+      [(path? path-or-submodule-path)
+       (define path (normal-case-path path-or-submodule-path))
+       (unless (hash-ref done path #f)
+         (hash-set! done path #t)
+         (define mod (hash-ref loaded path #f))
+         (when mod
+           (for-each loop (mod-depends mod))
+           (define-values (last-timestamp actual-path) (get-timestamp path))
+           (when (last-timestamp . > . (mod-timestamp mod))
+             (define orig (current-load/use-compiled))
+             (parameterize ([current-load/use-compiled
+                             (rerequire-load/use-compiled orig #f verbosity path-collector)]
+                            [current-module-declare-name rpath]
+                            [current-module-declare-source actual-path])
+               ((rerequire-load/use-compiled orig #t verbosity path-collector)
+                path (mod-name mod))))))]
+      [(submodule-path? path-or-submodule-path)
+       (define submodule-path path-or-submodule-path)
+       #;(loop (module-path-index-join #f #f submodule-path))
+       (void)])))
