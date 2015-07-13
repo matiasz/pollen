@@ -1,3 +1,3 @@
 #lang racket/base
-(require "two.rkt")
+(require "directory-require.rkt")
 (provide do)

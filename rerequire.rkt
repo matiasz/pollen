@@ -8,6 +8,7 @@ and Pollen uses a ton of `dynamic-rerequire`.
 |#
 
 (require syntax/modcode)
+(require sugar/debug)
 
 (provide dynamic-rerequire)
 
@@ -31,6 +32,7 @@ and Pollen uses a ton of `dynamic-rerequire`.
                                                #f verbosity collect-loaded-path!)])
     (dynamic-require mod 0))
   ;; Reload anything that's not up to date:
+  (report* mod loaded)
   (check-latest mod verbosity collect-loaded-path!)
   ;; Return a list of the paths that were loaded this time, in order:
   (reverse loaded-paths))
@@ -39,7 +41,7 @@ and Pollen uses a ton of `dynamic-rerequire`.
   (define notify
     (if (or (eq? 'all verbosity) (and re? (eq? 'reload verbosity)))
       (λ(path)
-        (eprintf "~aloading ~a from source\n" (if re? "re-" "") path)
+        (eprintf "~aloading ~a from source\n" (if re? "re" "") path)
         (path-collector path))
       path-collector))
   (λ(path name)
@@ -98,6 +100,7 @@ and Pollen uses a ton of `dynamic-rerequire`.
     (define rpath (module-path-index-resolve mpi))
     (define path (let ([p (resolved-module-path-name rpath)])
                    (if (pair? p) (car p) p)))
+    (report path)
     (when (path? path)
       (define npath (normal-case-path path))
       (unless (hash-ref done npath #f)

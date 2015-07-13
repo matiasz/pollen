@@ -1,61 +1,62 @@
 #lang racket/base
-(require (only-in scribble/reader make-at-reader) pollen/world racket/path pollen/project)
+(require (only-in scribble/reader make-at-reader) pollen/world racket/path pollen/project syntax/parse racket/syntax)
 
 (provide define+provide-reader-in-mode (all-from-out pollen/world))
 
 
 (define (make-custom-read custom-read-syntax-proc) 
-  (λ(p)
-    (syntax->datum
-     (custom-read-syntax-proc (object-name p) p))))
+  (λ(in) (syntax->datum (custom-read-syntax-proc (object-name in) in))))
 
-
+(require sugar/debug describe)
 (define (make-custom-read-syntax reader-mode)
-  (λ (path-string p)
+  (λ (src in)
     (define read-inner (make-at-reader 
                         #:command-char (if (or (equal? reader-mode world:mode-template) 
-                                               (and (string? path-string) (regexp-match (pregexp (format "\\.~a$" (world:current-template-source-ext))) path-string)))
+                                               (and (string? src) (regexp-match (pregexp (format "\\.~a$" (world:current-template-source-ext))) src)))
                                            (world:current-template-command-char)
                                            (world:current-command-char))
                         #:syntax? #t 
                         #:inside? #t))
-    (define file-contents (read-inner path-string p))
-    (datum->syntax file-contents 
-                   `(module repl-wrapper racket/base
-                      (module pollen-lang-module pollen 
-                        (define reader-mode ',reader-mode)
-                        (define reader-here-path ,(cond
-                                                    [(symbol? path-string) (symbol->string path-string)]
-                                                    [(equal? path-string "unsaved editor") path-string]
-                                                    [else (path->string path-string)]))
-                        (define parser-mode
-                          (if (equal? reader-mode world:mode-auto)
-                              (let* ([file-ext-pattern (pregexp "\\w+$")]
-                                     [here-ext (string->symbol (car (regexp-match file-ext-pattern reader-here-path)))])
-                                (cond
-                                  [(equal? here-ext (world:current-pagetree-source-ext)) world:mode-pagetree]
-                                  [(equal? here-ext (world:current-markup-source-ext)) world:mode-markup]
-                                  [(equal? here-ext (world:current-markdown-source-ext)) world:mode-markdown]
-                                  [else world:mode-preproc]))
-                              reader-mode))
-                        ;; change names of exports for local use
-                        ;; so they don't conflict if this source is imported into another
-                        (provide (except-out (all-defined-out) reader-here-path reader-mode parser-mode)
-                                 (prefix-out inner: reader-here-path)
-                                 (prefix-out inner: reader-mode)
-                                 (prefix-out inner: parser-mode)) 
-                        
-                        ,(require+provide-directory-require-files path-string)
-                        ,@file-contents)
-                      (require 'pollen-lang-module)
-                      (provide (all-from-out 'pollen-lang-module))
-                      (module+ main
-                        (require txexpr racket/string)
-                        (if (or (equal? inner:parser-mode world:mode-preproc) (equal? inner:parser-mode world:mode-template))
-                            (display ,(world:current-main-export))
-                            (print (with-handlers ([exn:fail? (λ(exn) ((error '|pollen markup error| (string-join (cdr (string-split (exn-message exn) ": ")) ": "))))])
-     (validate-txexpr ,(world:current-main-export)))))))
-                   file-contents)))
+    (define file-contents-stx (read-inner src in))
+    (syntax-parse file-contents-stx
+      [(body ...)
+       #:with my-reader-mode (format-symbol "~a" reader-mode)
+       #:with my-reader-here-path (cond [(symbol? src) (symbol->string src)]
+                                        [(equal? src "unsaved editor") src]
+                                        [else (path->string src)])
+       #:with r+p-d-r-f (datum->syntax file-contents-stx (require+provide-directory-require-files src))
+       #:with main-export (format-id file-contents-stx "~a" (world:current-main-export))
+       #'(module repl-wrapper racket/base
+           (module pollen-lang-module pollen
+             (define reader-mode 'my-reader-mode)
+             (define reader-here-path my-reader-here-path)
+             (define parser-mode
+               (if (equal? reader-mode world:mode-auto)
+                   (let* ([file-ext-pattern (pregexp "\\w+$")]
+                          [here-ext (string->symbol (car (regexp-match file-ext-pattern reader-here-path)))])
+                     (cond
+                       [(equal? here-ext (world:current-pagetree-source-ext)) world:mode-pagetree]
+                       [(equal? here-ext (world:current-markup-source-ext)) world:mode-markup]
+                       [(equal? here-ext (world:current-markdown-source-ext)) world:mode-markdown]
+                       [else world:mode-preproc]))
+                   reader-mode))
+             ;; change names of exports for local use
+             ;; so they don't conflict if this source is imported into another
+             (provide (except-out (all-defined-out) reader-here-path reader-mode parser-mode)
+                      (prefix-out inner: reader-here-path)
+                      (prefix-out inner: reader-mode)
+                      (prefix-out inner: parser-mode)) 
+             
+             r+p-d-r-f
+             body ...)
+           (require 'pollen-lang-module)
+           (provide (all-from-out 'pollen-lang-module))
+           (module+ main
+             (require txexpr racket/string)
+             (if (or (equal? inner:parser-mode world:mode-preproc) (equal? inner:parser-mode world:mode-template))
+                 (display main-export)
+                 (print (with-handlers ([exn:fail? (λ(exn) ((error 'pollen-markup-error (string-join (cdr (string-split (exn-message exn) ": ")) ": "))))])
+                          (validate-txexpr main-export))))))])))
 
 
 (define-syntax-rule (define+provide-reader-in-mode mode)
