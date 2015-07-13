@@ -1,39 +1,28 @@
 #lang racket
 ;; case3: cross-referenced pages
-(require pollen/render sugar pollen/cache rackunit racket/file pollen/world racket/serialize)
+(require sugar rackunit racket/file pollen/rerequire)
 
-(define (make-dr arg)
-  (define dr-path "directory-require.rkt")
+
+(define (make-dr dr-path arg)
+  (sleep 1)
+  (file-or-directory-modify-seconds dr-path (current-seconds))
   (display-to-file (format "#lang racket/base
 (provide do)
 (define (do) ~v)" arg) dr-path #:exists 'replace))
 
-(current-cache (make-hash))
-(make-dr "first-dr")
-(sleep 5)
-(render-to-file (->complete-path "one.html.pm"))
-(report (hash-ref (hash-ref (current-cache) (->complete-path "one.html.pm")) 'doc) 'c)
-(check-false (regexp-match #rx"second-dr" (file->string "one.html")))
-;(make-dr "second-dr")  
+
+(make-dr "two.rkt" "foo")
+(file-or-directory-modify-seconds "two.rkt")
+(void (dynamic-rerequire "one.html.pm"))
+(dynamic-require "one.html.pm" 'doc)
+(void (dynamic-rerequire "one.rkt"))
+((dynamic-require "one.rkt" 'do))
+(make-dr "two.rkt" "zam") 
+(file-or-directory-modify-seconds "two.rkt")
+(dynamic-rerequire "one.rkt")
+((dynamic-require "one.rkt" 'do))
+(dynamic-rerequire "one.html.pm")
+(dynamic-require "one.html.pm" 'doc)
 
 
 
-
-#|
-  #;(check-equal? (file->string (->complete-path "one.html")) "(root (id one) first-dr) two")
-
-  #;(report 'step-2a)
-  #;(render-to-file-if-needed (->complete-path "two.html.pm"))
-  #;(report 'step-2b)
-  #;(check-equal? (file->string (->complete-path "two.html")) "(root (id two) first-dr) one")
-  (make-dr "second-dr")  
-  (reset-cache)
-  #;(report 'step-3a)
-  #;(render-to-file-if-needed (->complete-path "one.html.pm"))
-  #;(report 'step-3b)
-  #;(check-equal? (file->string (->complete-path "one.html")) "(root (id one) second-dr) two")
-  #;(report 'step-4a)
-  #;(render-to-file-if-needed (->complete-path "two.html.pm"))
-  #;(report 'step-4b)
-  #;(check-equal? (file->string (->complete-path "two.html")) "(root (id two) second-dr) one")
-|#

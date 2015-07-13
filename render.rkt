@@ -129,37 +129,14 @@
   (dynamic-rerequire (->complete-path source-path) #:verbosity 'none))
 
 
-(define (make-file-path-key source-path [template-path #f])
-  (append (list source-path)
-          (if template-path
-              (list template-path)
-              empty)
-          (or (and (world:check-directory-requires-in-render?) (get-directory-require-files source-path))
-              empty)))
-
 
 (define/contract+provide (render-needed? source-path [template-path #f] [maybe-output-path #f])
   ((complete-path?) ((or/c #f complete-path?) (or/c #f complete-path?)) . ->* . (or/c #f symbol?))
   (define output-path (or maybe-output-path (->output-path source-path)))
-  (when (world:check-directory-requires-in-render?)
-    (define directory-require-files (get-directory-require-files source-path))
-    (and directory-require-files
-         (let ([dr-key (make-mod-times-key directory-require-files)])
-           (cond
-             [(not (hash-has-key? modification-time-hash dr-key))
-              (apply record-modification-time dr-key)]
-             [(apply modification-time-changed? dr-key)
-              (message "render: directory require files have changed. Resetting cache & file-modification table")
-              (reset-cache) ; because stored data is obsolete
-              (reset-modification-times) ; this will mark all previously-rendered source files for refresh
-              (apply record-modification-time dr-key)])))) ; put mod-time for dr back into table for later
-  
-  
-  (define file-paths (make-file-path-key source-path template-path))
+  (define file-paths (path->key source-path template-path))
   (or (and (not (file-exists? output-path)) 'output-file-missing)
       (and (not (apply previously-rendered-together? file-paths)) 'not-refreshed-this-session)
-      (and (apply modification-time-changed? file-paths) 'modification-time-changed)
-      (and (eligible-for-rerequire? source-path) (changed-on-rerequire? source-path) 'source-needed-rerequire)))
+      (and (apply modification-time-changed? file-paths) 'modification-time-changed)))
 
 
 (define/contract+provide (render-to-file-if-needed source-path [template-path #f] [maybe-output-path #f] #:force [force #f])
@@ -172,9 +149,10 @@
     (message (format "rendering ~a because ~a" (find-relative-path (world:current-project-root) source-path) (string-replace (symbol->string reason-to-render) "-" " ")))
     (render-to-file source-path template-path output-path)))
 
+(require sugar/debug)
 
 (define/contract+provide (render-to-file source-path [template-path #f] [maybe-output-path #f])
-  ((complete-path?) ((or/c #f complete-path?) (or/c #f complete-path?)) . ->* . void?)
+  ((complete-path?) ((or/c #f complete-path?) (or/c #f complete-path?)) . ->* . void?)  
   (define output-path (or maybe-output-path (->output-path source-path)))
   (define render-result (render source-path template-path)) ; will either be string or bytes
   (display-to-file render-result output-path #:exists 'replace
@@ -191,8 +169,7 @@
       [else (error (format "render: no rendering function found for ~a" source-path))]))
   
   (message (format "render: ~a" (file-name-from-path source-path)))
-  (when (eligible-for-rerequire? source-path) (rerequire source-path))
-  (apply record-modification-time (make-file-path-key source-path template-path)) 
+  
   (apply render-proc (list* source-path (if template-path (list template-path) empty))))
 
 
@@ -259,7 +236,6 @@
                  (filter (λ(x) (->boolean x)) ; if any of the possibilities below are invalid, they return #f 
                          (list                     
                           (parameterize ([current-directory (world:current-project-root)])
-                            (message "boingo")
                             (let ([source-metas (cached-require source-path (world:current-meta-export))])
                               (and ((->symbol (world:current-template-meta-key)) . in? . source-metas)
                                    (build-path source-dir (select-from-metas (->string (world:current-template-meta-key)) source-metas))))) ; path based on metas
@@ -267,12 +243,6 @@
                                                                             (add-ext (world:current-default-template-prefix) (get-ext output-path))))))) ; path to default template
           (and (filename-extension output-path) (build-path (world:current-server-extras-path) (add-ext (world:current-fallback-template-prefix) (get-ext output-path)))))))) ; fallback template
 
-
-(define/contract+provide (changed-on-rerequire? source-path)
-  (complete-path? . -> . boolean?) ; coercion because dynamic-rerequire needs real complete-path
-  ;; use dynamic-rerequire now to force render for cached-require later,
-  ;; otherwise the source file will get cached by compiler
-  (not (empty? (rerequire source-path))))
 
 
 ;; set up namespace for module caching

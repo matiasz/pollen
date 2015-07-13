@@ -11,8 +11,7 @@
 
 
 (when (file-exists? "pollen.cache") (delete-file "pollen.cache"))
-(parameterize ([current-cache (make-cache)]
-               [current-output-port (open-output-string)])
+(parameterize ([current-output-port (open-output-string)])
   (make-dr "first-dr")
   (reset-cache)
   (render-to-file-if-needed (->complete-path "one.html.pp"))

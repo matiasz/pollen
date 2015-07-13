@@ -177,7 +177,8 @@
        (or (ends-with? (path->string path) "compiled"))))
 
 (define+provide (cache-file? path)
-  (or (ends-with? (path->string path) (world:current-cache-filename))))
+  (or (ends-with? (path->string path) (world:current-cache-filename))
+      (ends-with? (path->string path) (world:current-cache-dir-name))))
 
 
 (define+provide (pollen-related-file? file)

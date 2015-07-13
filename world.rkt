@@ -44,6 +44,7 @@
 (define mode-template 'template)
 
 (define-settable cache-filename "pollen.cache")
+(define-settable cache-dir-name "pollen-cache")
 
 (define-settable decodable-extensions (list (current-markup-source-ext) (current-pagetree-source-ext)))
 

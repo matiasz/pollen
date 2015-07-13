@@ -13,19 +13,13 @@
 (define (do) ~v)" arg) dr-path #:exists 'replace))
 
 (when (file-exists? "pollen.cache") (delete-file "pollen.cache"))
-(parameterize ([current-cache (make-cache)]
-               [current-output-port (open-output-string)])
+(parameterize ([current-output-port (open-output-string)])
   (make-dr "first-dr")
   (reset-cache)
   (check-equal? (render (->complete-path "one.html.pp")) "first-dr")
-  (check-true (hash-empty? (current-cache)))
   (check-equal? (render (->complete-path "two.html.pp")) "first-dr")
-  (check-true (hash-empty? (current-cache)))
   (make-dr "second-dr")  
   (reset-cache)
   (check-equal? (render (->complete-path "one.html.pp")) "second-dr")
-  (check-true (hash-empty? (current-cache)))
-  (check-equal? (render (->complete-path "two.html.pp")) "second-dr")
-  (check-true (hash-empty? (current-cache))))
-
+  (check-equal? (render (->complete-path "two.html.pp")) "second-dr"))
 
