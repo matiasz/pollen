@@ -96,8 +96,8 @@ and Pollen uses a ton of `dynamic-rerequire`.
                   (values -inf.0 path)))
             (values -inf.0 path)))))
 
-(define submodule-path? list?)
-(require describe)
+(define submodule-path? pair?)
+(require describe syntax/moddep)
 
 (define (check-latest mod verbosity path-collector)
   (report loaded)
@@ -106,6 +106,9 @@ and Pollen uses a ton of `dynamic-rerequire`.
   (let loop ([mpi mpi])
     (define rpath (module-path-index-resolve mpi))
     (define path-or-submodule-path (resolved-module-path-name rpath))
+    (define path (if (path? path-or-submodule-path)
+                     path-or-submodule-path
+                     (car path-or-submodule-path)))
     (cond
       [(path? path-or-submodule-path)
        (define path (normal-case-path path-or-submodule-path))
@@ -125,5 +128,5 @@ and Pollen uses a ton of `dynamic-rerequire`.
                 path (mod-name mod))))))]
       [(submodule-path? path-or-submodule-path)
        (define submodule-path path-or-submodule-path)
-       #;(report* submodule-path (module->imports (module-path-index-join #f #f submodule-path)))
+       (report* (module-declared? (make-resolved-module-path submodule-path) #t))
        (void)])))
