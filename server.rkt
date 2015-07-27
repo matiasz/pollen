@@ -30,8 +30,8 @@
     
   (parameterize ([error-print-width 1000])
     (serve/servlet pollen-servlet
-                   #:connection-close? #t
-                   #:stateless? #t
+                   ;#:connection-close? #t
+                   ;#:stateless? #t
                    #:port (world:current-server-port)
                    #:listen-ip #f
                    #:servlet-regexp #rx"" ; respond to top level
