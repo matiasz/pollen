@@ -1,3 +1,3 @@
 #lang racket/base
 (provide do)
-(define (do) "foo")
+(define (do) "zam")

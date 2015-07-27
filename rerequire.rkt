@@ -7,8 +7,7 @@ In general this is not a superb strategy but this module is largely independent,
 and Pollen uses a ton of `dynamic-rerequire`.
 |#
 
-(require syntax/modcode)
-(require sugar/debug)
+(require syntax/moddep racket/list)
 
 (provide dynamic-rerequire)
 
@@ -47,7 +46,6 @@ and Pollen uses a ton of `dynamic-rerequire`.
           (path-collector path))
         path-collector))
   (λ(path name)
-    (report path 'path-being-loaded)
     (if (and name
              (not (and (pair? name)
                        (not (car name)))))
@@ -96,19 +94,30 @@ and Pollen uses a ton of `dynamic-rerequire`.
                   (values -inf.0 path)))
             (values -inf.0 path)))))
 
-(define submodule-path? pair?)
-(require describe syntax/moddep)
+
+(define (mod->file-deps modpath-in)
+  (define (->modpath modpath-in)
+    (if (string? modpath-in)
+        (string->path modpath-in)
+        modpath-in))
+  (define modpath-base (->modpath modpath-in))
+  (remove-duplicates
+   (parameterize ([current-namespace (make-base-namespace)])
+     (let loop ([modpath-in modpath-base])
+       (define modpath (->modpath modpath-in))
+       (dynamic-require modpath #f)
+       (append-map (λ(mpi)
+                     (let ([result (resolve-module-path-index mpi modpath-base)])
+                       (if (and (pair? result) (eqv? (car result) 'submod))
+                           (loop result)
+                           (list result))))
+                   (filter module-path-index? (car (module->imports modpath))))))))
 
 (define (check-latest mod verbosity path-collector)
-  (report loaded)
-  (define mpi (module-path-index-join mod #f))
   (define done (make-hash))
-  (let loop ([mpi mpi])
-    (define rpath (module-path-index-resolve mpi))
+  (for ([file-dep (in-list (mod->file-deps mod))])
+    (define rpath (module-path-index-resolve (module-path-index-join file-dep #f)))
     (define path-or-submodule-path (resolved-module-path-name rpath))
-    (define path (if (path? path-or-submodule-path)
-                     path-or-submodule-path
-                     (car path-or-submodule-path)))
     (cond
       [(path? path-or-submodule-path)
        (define path (normal-case-path path-or-submodule-path))
@@ -116,7 +125,6 @@ and Pollen uses a ton of `dynamic-rerequire`.
          (hash-set! done path #t)
          (define mod (hash-ref loaded path #f))
          (when mod
-           (for-each loop (mod-depends mod))
            (define-values (last-timestamp actual-path) (get-timestamp path))
            (when (last-timestamp . > . (mod-timestamp mod))
              (define orig (current-load/use-compiled))
@@ -125,8 +133,4 @@ and Pollen uses a ton of `dynamic-rerequire`.
                             [current-module-declare-name rpath]
                             [current-module-declare-source actual-path])
                ((rerequire-load/use-compiled orig #t verbosity path-collector)
-                path (mod-name mod))))))]
-      [(submodule-path? path-or-submodule-path)
-       (define submodule-path path-or-submodule-path)
-       (report* (module-declared? (make-resolved-module-path submodule-path) #t))
-       (void)])))
+                path (mod-name mod))))))])))
