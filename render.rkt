@@ -1,5 +1,5 @@
 #lang racket/base
-(require racket/file racket/rerequire racket/path racket/match)
+(require racket/file "rerequire.rkt" racket/path racket/match)
 (require sugar/coerce sugar/test sugar/define sugar/container sugar/file sugar/len)
 (require "file.rkt" "cache.rkt" "world.rkt" "debug.rkt" "pagetree.rkt" "project.rkt" "template.rkt")
 
@@ -275,7 +275,7 @@
                                    racket/format
                                    racket/function
                                    racket/port 
-                                   racket/rerequire 
+                                   ;racket/rerequire 
                                    racket/list
                                    racket/match
                                    racket/string
@@ -286,12 +286,13 @@
                                    pollen/file
                                    pollen/include-template
                                    pollen/main
-                                   pollen/reader-base
                                    pollen/pagetree
+                                   pollen/project
+                                   pollen/reader-base
+                                   pollen/rerequire
                                    pollen/tag
                                    pollen/template
                                    pollen/world
-                                   pollen/project
                                    sugar
                                    txexpr))
 
