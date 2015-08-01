@@ -19,7 +19,6 @@ and Pollen uses a ton of `dynamic-rerequire`.
   (rerequire mod verbosity))
 
 (struct mod (name timestamp) #:transparent)
-
 (define loaded (make-hash))
 (define file-deps (make-hash))
 (define mpi->path (compose1 resolved-module-path-name module-path-index-resolve))
@@ -34,7 +33,7 @@ and Pollen uses a ton of `dynamic-rerequire`.
                   (rerequire-load/use-compiled (current-load/use-compiled)
                                                #f verbosity collect-loaded-path!)])
     (dynamic-require mod 0))
-  (unless (hash-has-key? file-deps #^mod) ;; the first time mod is loaded ...
+  (unless (hash-has-key? file-deps #^mod) ;; the first time mod is loaded,
     (hash-set! file-deps mod #^loaded-paths)) ;; store all of its file dependencies for later
   ;; Reload anything that's not up to date:
   (check-latest mod verbosity collect-loaded-path!)
