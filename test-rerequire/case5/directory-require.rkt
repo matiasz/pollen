@@ -1,3 +1,3 @@
 #lang racket/base
 (provide color)
-(define color "red")
+(define color "purple")
