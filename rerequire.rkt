@@ -1,4 +1,4 @@
-#lang racket/base
+#lang sugar/debug racket/base
 #|
 This is the rerequire.rkt. from the Racket 6.2.0.3 distribution.
 `dynamic-rerequire` was improved after 6.0 to return a list of updated files.
@@ -101,36 +101,32 @@ and Pollen uses a ton of `dynamic-rerequire`.
         (string->path modpath-in)
         modpath-in))
   (define modpath-base (->modpath modpath-in))
-  (remove-duplicates
-   (parameterize ([current-namespace (make-base-namespace)])
-     (let loop ([modpath-in modpath-base])
-       (define modpath (->modpath modpath-in))
-       (dynamic-require modpath #f)
-       (append-map (λ(mpi)
-                     (let ([result (resolve-module-path-index mpi modpath-base)])
-                       (if (and (pair? result) (eqv? (car result) 'submod))
-                           (loop result)
-                           (list result))))
-                   (filter module-path-index? (car (module->imports modpath))))))))
+  (parameterize ([current-namespace (make-base-namespace)])
+    (let loop ([modpath-in modpath-base])
+      (define modpath (->modpath modpath-in))
+      (dynamic-require modpath #f)
+      (append-map (λ(mpi)
+                    (let ([result (resolve-module-path-index mpi modpath-base)])
+                      (if (and (pair? result) (eqv? (car result) 'submod))
+                          (loop result)
+                          (list result))))
+                  (filter module-path-index? (car (module->imports modpath)))))))
 
 (define (check-latest mod verbosity path-collector)
-  (define done (make-hash))
+  (define path-done (make-hash))
   (for ([file-dep (in-list (mod->file-deps mod))])
     (define rpath (module-path-index-resolve (module-path-index-join file-dep #f)))
-    (define path-or-submodule-path (resolved-module-path-name rpath))
-    (cond
-      [(path? path-or-submodule-path)
-       (define path (normal-case-path path-or-submodule-path))
-       (unless (hash-ref done path #f)
-         (hash-set! done path #t)
-         (define mod (hash-ref loaded path #f))
-         (when mod
-           (define-values (last-timestamp actual-path) (get-timestamp path))
-           (when (last-timestamp . > . (mod-timestamp mod))
-             (define orig (current-load/use-compiled))
-             (parameterize ([current-load/use-compiled
-                             (rerequire-load/use-compiled orig #f verbosity path-collector)]
-                            [current-module-declare-name rpath]
-                            [current-module-declare-source actual-path])
-               ((rerequire-load/use-compiled orig #t verbosity path-collector)
-                path (mod-name mod))))))])))
+    (define path (normal-case-path (resolved-module-path-name rpath)))
+    (unless (hash-ref path-done path #f)
+      (hash-set! path-done path #t)
+      (define mod (hash-ref loaded path #f))
+      (when mod
+        (define-values (last-timestamp actual-path) (get-timestamp path))
+        (when (last-timestamp . > . (mod-timestamp mod))
+          (define orig (current-load/use-compiled))
+          (parameterize ([current-load/use-compiled
+                          (rerequire-load/use-compiled orig #f verbosity path-collector)]
+                         [current-module-declare-name rpath]
+                         [current-module-declare-source actual-path])
+            ((rerequire-load/use-compiled orig #t verbosity path-collector)
+             path (mod-name mod))))))))
