@@ -1,5 +1,5 @@
 #lang racket/base
-(require racket/list racket/contract racket/rerequire racket/file racket/format xml racket/match racket/set racket/string racket/promise racket/path)
+(require racket/list racket/contract racket/file racket/format xml racket/match racket/set racket/string racket/promise racket/path)
 (require web-server/http/xexpr web-server/dispatchers/dispatch)
 (require net/url)
 (require web-server/http/request-structs)
