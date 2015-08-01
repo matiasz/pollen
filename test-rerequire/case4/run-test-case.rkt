@@ -1,4 +1,4 @@
-#lang racket
+#lang sugar/debug racket
 (require rackunit racket/file pollen/rerequire)
 
 (define (change-required-file path proc-value)
@@ -13,6 +13,6 @@
 ;; even though "two.rkt" is inside a submodule, rerequire will transitively load it the first time
 (check-true (and (member (path->complete-path "two.rkt") (dynamic-rerequire "one.rkt")) #t))
 ;; change "two.rkt"
-;(change-required-file "two.rkt" "zam")
+(change-required-file "two.rkt" "zam")
 ;; this will error: rerequire should transitively reload "two.rkt", but doesn't
-;(check-false (empty? (dynamic-rerequire "one.rkt" #:verbosity 'none))) 
+(check-false (empty? (dynamic-rerequire "one.rkt" #:verbosity 'none))) 

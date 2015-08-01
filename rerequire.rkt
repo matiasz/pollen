@@ -1,4 +1,4 @@
-#lang sugar/debug racket/base
+#lang racket/base
 #|
 This is the rerequire.rkt. from the Racket 6.2.0.3 distribution.
 `dynamic-rerequire` was improved after 6.0 to return a list of updated files.
@@ -18,12 +18,13 @@ and Pollen uses a ton of `dynamic-rerequire`.
     (raise-argument-error 'dynamic-rerequire "(or/c 'all 'reload 'none)" verbosity))
   (rerequire mod verbosity))
 
-(struct mod (name timestamp depends) #:transparent)
+(struct mod (name timestamp) #:transparent)
 
 (define loaded (make-hash))
+(define file-deps (make-hash))
 (define mpi->path (compose1 resolved-module-path-name module-path-index-resolve))
 
-(provide loaded mod mod-depends mod? mpi->path)
+(provide loaded mod mod? mpi->path)
 
 (define (rerequire mod verbosity)
   (define loaded-paths '())
@@ -33,6 +34,8 @@ and Pollen uses a ton of `dynamic-rerequire`.
                   (rerequire-load/use-compiled (current-load/use-compiled)
                                                #f verbosity collect-loaded-path!)])
     (dynamic-require mod 0))
+  (unless (hash-has-key? file-deps mod) ;; the first time mod is loaded ...
+    (hash-set! file-deps mod loaded-paths)) ;; store all of its file dependencies for later
   ;; Reload anything that's not up to date:
   (check-latest mod verbosity collect-loaded-path!)
   ;; Return a list of the paths that were loaded this time, in order:
@@ -67,15 +70,9 @@ and Pollen uses a ton of `dynamic-rerequire`.
                  [dir  (or (current-load-relative-directory) (current-directory))]
                  [path (path->complete-path path dir)]
                  [path (normal-case-path (simplify-path path))])
-            ;; Record module timestamp and dependencies:
+            ;; Record module timestamp:
             (define-values (ts actual-path) (get-timestamp path))
-            (let ([a-mod (mod name
-                              ts
-                              (if code
-                                  (apply append 
-                                         (map cdr (module-compiled-imports code)))
-                                  null))])
-              (hash-set! loaded path a-mod))
+            (hash-set! loaded path (mod name ts))
             ;; Evaluate the module:
             (parameterize ([current-module-declare-source actual-path])
               (eval code))))
@@ -96,21 +93,7 @@ and Pollen uses a ton of `dynamic-rerequire`.
 
 
 (define (mod->file-deps modpath-in)
-  (define (->modpath modpath-in)
-    (if (string? modpath-in)
-        (string->path modpath-in)
-        modpath-in))
-  (define modpath-base (->modpath modpath-in))
-  (parameterize ([current-namespace (make-base-namespace)])
-    (let loop ([modpath-in modpath-base])
-      (define modpath (->modpath modpath-in))
-      (dynamic-require modpath #f)
-      (append-map (λ(mpi)
-                    (let ([result (resolve-module-path-index mpi modpath-base)])
-                      (if (and (pair? result) (eqv? (car result) 'submod))
-                          (loop result)
-                          (list result))))
-                  (filter module-path-index? (car (module->imports modpath)))))))
+  (hash-ref file-deps modpath-in))
 
 (define (check-latest mod verbosity path-collector)
   (define path-done (make-hash))
