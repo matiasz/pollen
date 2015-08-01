@@ -1,4 +1,4 @@
-#lang sugar/debug racket/base
+#lang racket/base
 #|
 This is the rerequire.rkt. from the Racket 6.2.0.3 distribution.
 `dynamic-rerequire` was improved after 6.0 to return a list of updated files.
@@ -20,10 +20,7 @@ and Pollen uses a ton of `dynamic-rerequire`.
 
 (struct mod (name timestamp) #:transparent)
 (define loaded (make-hash))
-(define file-deps (make-hash))
-(define mpi->path (compose1 resolved-module-path-name module-path-index-resolve))
-
-(provide loaded mod mod? mpi->path)
+(define mod-dep-paths (make-hash))
 
 (define (rerequire mod verbosity)
   (define loaded-paths '())
@@ -33,12 +30,13 @@ and Pollen uses a ton of `dynamic-rerequire`.
                   (rerequire-load/use-compiled (current-load/use-compiled)
                                                #f verbosity collect-loaded-path!)])
     (dynamic-require mod 0))
-  (unless (hash-has-key? file-deps #^mod) ;; the first time mod is loaded,
-    (hash-set! file-deps mod #^loaded-paths)) ;; store all of its file dependencies for later
+  (unless (hash-has-key? mod-dep-paths mod) ;; the first time mod is loaded,
+    (hash-set! mod-dep-paths mod loaded-paths)) ;; store all of its file dependencies for later
   ;; Reload anything that's not up to date:
   (check-latest mod verbosity collect-loaded-path!)
   ;; Return a list of the paths that were loaded this time, in order:
   (reverse loaded-paths))
+
 
 (define (rerequire-load/use-compiled orig re? verbosity path-collector)
   (define notify
@@ -78,6 +76,7 @@ and Pollen uses a ton of `dynamic-rerequire`.
         ;; Not a module, or a submodule that we shouldn't load from source:
         (begin (notify path) (orig path name)))))
 
+
 (define (get-timestamp path)
   (let ([ts (file-or-directory-modify-seconds path #f (λ _ #f))])
     (if ts
@@ -93,8 +92,8 @@ and Pollen uses a ton of `dynamic-rerequire`.
 
 (define (check-latest mod verbosity path-collector)
   (define path-done (make-hash))
-  (for ([file-dep (in-list (hash-ref file-deps mod))])
-    (define rpath (module-path-index-resolve (module-path-index-join file-dep #f)))
+  (for ([dep-path (in-list (hash-ref mod-dep-paths mod))])
+    (define rpath (module-path-index-resolve (module-path-index-join dep-path #f)))
     (define path (normal-case-path (resolved-module-path-name rpath)))
     (unless (hash-ref path-done path #f)
       (hash-set! path-done path #t)

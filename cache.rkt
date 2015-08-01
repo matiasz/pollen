@@ -1,11 +1,10 @@
 #lang racket/base
-(require racket/path racket/file file/cache sugar/coerce "project.rkt" "world.rkt" "rerequire.rkt" "debug.rkt")
+(require racket/file file/cache sugar/coerce "project.rkt" "world.rkt" "rerequire.rkt")
 
 ;; The cache is a hash with paths as keys.
 ;; The cache values are also hashes, with key/value pairs for that path.
 
 (provide reset-cache cached-require paths->key path->hash)
-(provide (all-from-out "rerequire.rkt"))
 
 (define (get-cache-dir)
   (build-path (world:current-project-root) (world:current-cache-dir-name)))
@@ -40,7 +39,8 @@
   (cond
     [(world:current-compile-cache-active)
      (define pickup-file (build-path (get-cache-dir) "pickup.rktd"))
-     (cache-file pickup-file #:exists-ok? #t
+     (cache-file pickup-file
+                 #:exists-ok? #t
                  (paths->key path)
                  (get-cache-dir)
                  (λ _ (write-to-file (path->hash path) pickup-file #:exists 'replace))
