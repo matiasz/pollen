@@ -1,4 +1,4 @@
-#lang racket/base
+#lang sugar/debug racket/base
 (require racket/file file/cache sugar/coerce "project.rkt" "world.rkt" "rerequire.rkt")
 
 ;; The cache is a hash with paths as keys.

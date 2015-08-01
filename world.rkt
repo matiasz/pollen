@@ -46,9 +46,9 @@
 (define-settable cache-filename "pollen.cache")
 (define-settable cache-dir-name "pollen-cache")
 
-(define-settable decodable-extensions (list (current-markup-source-ext) (current-pagetree-source-ext)))
+(define-settable decodable-extensions (list markup-source-ext pagetree-source-ext))
 
-(define-settable default-pagetree (format "index.~a" (current-pagetree-source-ext)))
+(define-settable default-pagetree (format "index.~a" pagetree-source-ext))
 (define-settable pagetree-root-node 'pagetree-root)
 
 (define-settable command-char #\◊)
@@ -62,16 +62,14 @@
 (define-settable meta-export 'metas)
 (define-settable meta-tag-name 'meta)
 
+
 (define-settable newline "\n")
-(define-settable linebreak-separator (current-newline))
+(define-settable linebreak-separator "\n")
 (define-settable paragraph-separator "\n\n")
 
 (define-settable paths-excluded-from-dashboard (map string->path (list "poldash.css" "compiled")))
 
-
-(define-settable default-port 8080)
-
-(define current-server-port (make-parameter (current-default-port)))
+(define current-server-port (make-parameter 8080))
 
 (define-settable dashboard-css "poldash.css")
 
