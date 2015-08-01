@@ -91,12 +91,9 @@ and Pollen uses a ton of `dynamic-rerequire`.
             (values -inf.0 path)))))
 
 
-(define (mod->file-deps modpath-in)
-  (hash-ref file-deps modpath-in))
-
 (define (check-latest mod verbosity path-collector)
   (define path-done (make-hash))
-  (for ([file-dep (in-list (mod->file-deps mod))])
+  (for ([file-dep (in-list (hash-ref file-deps mod))])
     (define rpath (module-path-index-resolve (module-path-index-join file-dep #f)))
     (define path (normal-case-path (resolved-module-path-name rpath)))
     (unless (hash-ref path-done path #f)
