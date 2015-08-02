@@ -1,4 +1,4 @@
-#lang racket/base
+#lang sugar/debug racket/base
 (require racket/file racket/path racket/match racket/list)
 (require sugar/coerce sugar/test sugar/define sugar/container sugar/file sugar/len)
 (require "file.rkt" "cache.rkt" "world.rkt" "debug.rkt" "pagetree.rkt" "project.rkt" "template.rkt" "rerequire.rkt")
@@ -138,7 +138,7 @@
   (message (format "render: ~a" (file-name-from-path source-path)))
   (define render-result (apply render-proc (cons source-path (if template-path (list template-path) null))))
   ;; wait till last possible moment to store mod dates, because render-proc may also trigger its own subrenders
-  ;; e.g., of a template. 
+  ;; e.g., of a template.
   (update-mod-date-hash source-path template-path) 
   render-result)
 

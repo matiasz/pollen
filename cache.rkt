@@ -4,7 +4,7 @@
 ;; The cache is a hash with paths as keys.
 ;; The cache values are also hashes, with key/value pairs for that path.
 
-(provide reset-cache cached-require paths->key path->hash)
+(provide (all-defined-out))
 
 (define (get-cache-dir)
   (build-path (world:current-project-root) (world:current-cache-dir-name)))
@@ -17,19 +17,26 @@
 (define (paths->key source-path [template-path #f])
   ;; key is list of file + mod-time pairs
   (define path-strings (map (compose1 ->string ->complete-path)
-                     (append (list source-path)
-                           (if template-path (list template-path) null)
-                           (or (get-directory-require-files source-path) null))))
+                            (append (list source-path)
+                                    (if template-path (list template-path) null)
+                                    (or (get-directory-require-files source-path) null))))
   (map cons path-strings (map file-or-directory-modify-seconds path-strings)))
+
+
+
+(define (update-directory-requires source-path)
+  (define directory-require-files (get-directory-require-files source-path))
+  (and directory-require-files (map dynamic-rerequire directory-require-files))
+  (void))
 
 
 (define (path->hash path)
   (dynamic-rerequire path)
   (hash (world:current-main-export) (dynamic-require path (world:current-main-export))
-         (world:current-meta-export) (dynamic-require path (world:current-meta-export))))
+        (world:current-meta-export) (dynamic-require path (world:current-meta-export))))
 
 
-(define (cached-require path-string subkey)
+(define (cached-require path-string subkey)  
   (define path (with-handlers ([exn:fail? (λ _ (error 'cached-require (format "~a is not a valid path" path-string)))])
                  (->complete-path path-string)))
   
