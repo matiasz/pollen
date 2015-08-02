@@ -23,5 +23,4 @@ scribblings/*.html
 scribblings/pollen/*
 doc/*
 */pollen-cache/*
-
-
+test-rerequire/case6/pollen-cache/*
