@@ -204,8 +204,9 @@
          (or ; Build the possible paths and use the first one that either exists, or has existing source (template, preproc, or null)
           (ormap (λ(p) (if (ormap file-exists? (list p (->template-source-path p) (->preproc-source-path p) (->null-source-path p))) p #f)) 
                  (filter not-false? ; if any of the possibilities below are invalid, they return #f 
-                         (list                     
-                          (let ([source-metas (cached-require source-path (world:current-meta-export))])
+                         (list
+                          ;; Q: why does next line have to be dynamic-require rather than cached-require?
+                          (let ([source-metas (cached-require (->complete-path source-path) (world:current-meta-export) 'get-template)])
                               (and ((->symbol (world:current-template-meta-key)) . in? . source-metas)
                                    (build-path source-dir (select-from-metas (->string (world:current-template-meta-key)) source-metas)))) ; path based on metas
                           (and (filename-extension output-path) (build-path (world:current-project-root) 
@@ -277,7 +278,6 @@
   (define cache-ns (car (current-eval-namespace-cache)))
   (define cached-modules (cdr (current-eval-namespace-cache)))
   (parameterize ([current-namespace (make-base-namespace)]
-                 [current-output-port (current-error-port)]
                  [current-pagetree (make-project-pagetree (world:current-project-root))])
     (for-each (λ(mod-name) (namespace-attach-module cache-ns mod-name)) cached-modules)   
     (eval expr-to-eval (current-namespace))))

@@ -1,17 +1,17 @@
 #lang sugar/debug racket/base
-(require racket/file file/cache sugar/coerce "project.rkt" "world.rkt" "rerequire.rkt")
+(require racket/file file/cache sugar/coerce "project.rkt" "world.rkt" racket/rerequire)
 
 ;; The cache is a hash with paths as keys.
 ;; The cache values are also hashes, with key/value pairs for that path.
 
 (provide (all-defined-out))
 
-(define (get-cache-dir)
+(define cache-dir
   (build-path (world:current-project-root) (world:current-cache-dir-name)))
 
 
 (define (reset-cache)
-  (cache-remove #f (get-cache-dir)))
+  (cache-remove #f cache-dir))
 
 
 (define (paths->key source-path [template-path #f])
@@ -31,27 +31,56 @@
 
 
 (define (path->hash path)
-  (dynamic-rerequire path)
-  (hash (world:current-main-export) (dynamic-require path (world:current-main-export))
-        (world:current-meta-export) (dynamic-require path (world:current-meta-export))))
+  #Rpath
+  (dynamic-rerequire #Rpath)
+  (displayln (file->string (build-path (world:current-project-root) "directory-require.rkt")))
+  #R(dynamic-require (build-path (world:current-project-root) "directory-require.rkt") 'color)
+  (hash (world:current-main-export) #R(dynamic-require path (world:current-main-export))
+        (world:current-meta-export) #R(dynamic-require path (world:current-meta-export))))
 
-
-(define (cached-require path-string subkey)  
+(require sugar/debug)
+(define (cached-require path-string subkey [signal #f])  
   (define path (with-handlers ([exn:fail? (λ _ (error 'cached-require (format "~a is not a valid path" path-string)))])
                  (->complete-path path-string)))
   
   (when (not (file-exists? path))
     (error (format "cached-require: ~a does not exist" path)))
-
+  
   (cond
     [(world:current-compile-cache-active)
-     (define pickup-file (build-path (get-cache-dir) "pickup.rktd"))
-     (cache-file pickup-file
-                 #:exists-ok? #t
-                 (paths->key path)
-                 (get-cache-dir)
-                 (λ _ (write-to-file (path->hash path) pickup-file #:exists 'replace))
-                 #:max-cache-size (world:current-compile-cache-max-size))
+     (define pickup-file (build-path cache-dir "pickup.rktd"))
+     (let ([key (paths->key path)])
+       (cache-file pickup-file
+                   #:exists-ok? #t
+                   key
+                   cache-dir
+                   #:notify-cache-use (λ(cfn) (displayln (format "cr1: using ~a for key ~a" cfn key))) 
+                   (λ _ (displayln (format "cr1: caching key ~a" key))
+                     (write-to-file (path->hash path) pickup-file #:exists 'replace))
+                   #:max-cache-size (world:current-compile-cache-max-size)))
      (hash-ref (file->value pickup-file) subkey)]
-    [else ; cache inactive
-     (dynamic-require path subkey)]))
+    [signal 
+     (report signal '|cache deactivated by signal|)
+     (dynamic-require path subkey)]
+    [else (dynamic-require path subkey)]))
+
+
+
+(define (cached-require2 path-string subkey [signal #f])  
+  (define path (->complete-path path-string))
+  
+  (when signal #Rsignal)
+  #|
+(define pickup-file (build-path cache-dir "pickup.rktd"))
+  #;(let ([key (cons 'template (paths->key path))])
+    (cache-file pickup-file
+                #:exists-ok? #t
+                key
+                cache-dir
+                #:notify-cache-use (λ(cfn) (displayln (format "cr2: using ~a for key ~a" cfn key))) 
+                (λ _ (displayln (format "cr2: caching key ~a" key))
+                  (write-to-file (path->hash path) pickup-file #:exists 'replace))))
+  #;(hash-ref (file->value pickup-file) subkey)
+
+ |#
+  (dynamic-require path subkey))

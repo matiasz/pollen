@@ -7,8 +7,9 @@
 (define current-project-root (make-parameter (current-directory)))
 
 (define directory-require "directory-require.rkt")
-(define (get-path-to-override) 
-  (build-path (current-project-root) directory-require))
+(define (get-path-to-override)
+  ;; clue: putting config inside dr.rkt is a bad idea
+  (build-path (current-project-root) "zing.rkt"))
 
 ;; parameters should not be made settable.
 (define-for-syntax config-submodule-name 'config)
