@@ -87,8 +87,9 @@ version                print the version (~a)" (world:current-server-port) (worl
 (define (handle-start directory [port #f])
   (when (not (directory-exists? directory))
     (error (format "~a is not a directory" directory)))
+  (define server-port (or port (world:current-server-port)))
   (parameterize ([world:current-project-root directory]
-                 [world:current-server-port (or port world:default-port)])
+                 [world:current-server-port server-port])
     (displayln "Starting project server ...")
     ((dynamic-require 'pollen/server 'start-server))))
 

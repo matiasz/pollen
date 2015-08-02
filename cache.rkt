@@ -42,7 +42,7 @@
   
   (when (not (file-exists? path))
     (error (format "cached-require: ~a does not exist" path)))
-  
+
   (cond
     [(world:current-compile-cache-active)
      (define pickup-file (build-path (get-cache-dir) "pickup.rktd"))
