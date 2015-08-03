@@ -47,7 +47,7 @@
 (define-settable cache-filename "pollen.cache")
 (define-settable cache-dir-name "pollen-cache")
 
-(define-settable decodable-extensions (list markup-source-ext pagetree-source-ext))
+(define-settable decodable-extensions (list (current-markup-source-ext) (current-pagetree-source-ext)))
 
 (define-settable default-pagetree (format "index.~a" pagetree-source-ext))
 (define-settable pagetree-root-node 'pagetree-root)
@@ -65,7 +65,7 @@
 
 
 (define-settable newline "\n")
-(define-settable linebreak-separator "\n")
+(define-settable linebreak-separator (current-newline))
 (define-settable paragraph-separator "\n\n")
 
 (define-settable paths-excluded-from-dashboard (map string->path (list "poldash.css" "compiled")))
