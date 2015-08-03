@@ -1,21 +1,24 @@
-#lang sugar/debug racket
-(require rackunit   pollen/world)
+#lang racket
+(require rackunit)
+(provide (all-defined-out))
 
 (define (change-required-file path proc-value [delay 0])
   (sleep delay)
   (display-to-file (format "#lang racket/base
 (provide color)
-;(displayln 'dr-loaded)
-(define color ~v)" proc-value) path #:exists 'replace)
-  (file-or-directory-modify-seconds path (current-seconds)))
+(define color ~v)" proc-value) path #:exists 'replace))
 
 
 ;; clue: when cache hits this expression, it fouls up dyn-require for dr.rkt
 ;; because it precaches the file or something...
-(world:current-cache-dir-name)
+;(world:current-cache-dir-name)
 
 
+;; clue: dynamic-require does not support reloading.
+;; theory: sometimes dynamic-require looks like it's supporting reloading,
+;; but in general it does not.
 
-(change-required-file "directory-require.rkt" "first")
-(check-equal? (dynamic-require "directory-require.rkt" 'color) "first")
-(change-required-file "directory-require.rkt" "second")
+(change-required-file "directory-require.rkt" "first" 1)
+(void (dynamic-require "directory-require.rkt" 'color))
+(change-required-file "directory-require.rkt" "second" 1)
+(check-equal? (dynamic-require "directory-require.rkt" 'color) "second")

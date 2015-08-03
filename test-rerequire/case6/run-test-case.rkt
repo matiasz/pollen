@@ -1,5 +1,5 @@
 #lang sugar/debug racket
-(require rackunit racket/file racket/format sugar pollen/render pollen/cache )
+(require rackunit racket/file racket/format sugar pollen/render pollen/cache racket/rerequire)
 
 (define (change-required-file path proc-value [delay 0])
   (sleep delay)
@@ -10,7 +10,7 @@
   (file-or-directory-modify-seconds path (current-seconds)))
 
 (define (render-contains? path key)
-  ;(dynamic-rerequire "directory-require.rkt") ; <- this line is essential to making the tests work
+  (dynamic-rerequire "directory-require.rkt") ; <- this line is essential to making the tests work
   (define render-result (render (->complete-path path)))
   #Rrender-result
   (and (regexp-match key render-result) #t))
@@ -23,9 +23,10 @@
 (change-required-file "directory-require.rkt" "first")
 (check-equal? (dynamic-require "directory-require.rkt" 'color) "first")
 #;(check-true (render-contains? pp-source "first"))
-(check-true (render-contains? pm-source "first"))
+;(check-true (render-contains? pm-source "first"))
 
 (change-required-file "directory-require.rkt" "second" 1)
+(check-equal? (dynamic-require "directory-require.rkt" 'color) "first")
 #;(check-true (render-contains? pp-source "second"))
-(check-true (render-contains? pm-source "second"))
+;(check-true (render-contains? pm-source "second"))
 
