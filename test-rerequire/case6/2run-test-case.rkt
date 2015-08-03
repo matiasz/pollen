@@ -21,4 +21,8 @@
 (change-required-file "directory-require.rkt" "first" 1)
 (void (dynamic-require "directory-require.rkt" 'color))
 (change-required-file "directory-require.rkt" "second" 1)
-(check-equal? (dynamic-require "directory-require.rkt" 'color) "second")
+;; clue: here, dyn-req will not re-instantiate the module in current namespace, so value does not change
+(check-equal? (dynamic-require "directory-require.rkt" 'color) "first")
+;; clue: but in a new namespace, dyn-req re-instantiates, refreshing the value..
+(parameterize ([current-namespace (make-base-namespace)])
+(check-equal? (dynamic-require "directory-require.rkt" 'color) "second"))
