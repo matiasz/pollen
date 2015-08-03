@@ -8,6 +8,9 @@
 (provide color)
 (define color ~v)" proc-value) path #:exists 'replace))
 
+(define (force-dynamic-require mod sym)
+  (parameterize ([current-namespace (make-base-namespace)])
+    (dynamic-require mod sym)))
 
 ;; clue: when cache hits this expression, it fouls up dyn-require for dr.rkt
 ;; because it precaches the file or something...
@@ -24,5 +27,4 @@
 ;; clue: here, dyn-req will not re-instantiate the module in current namespace, so value does not change
 (check-equal? (dynamic-require "directory-require.rkt" 'color) "first")
 ;; clue: but in a new namespace, dyn-req re-instantiates, refreshing the value..
-(parameterize ([current-namespace (make-base-namespace)])
-(check-equal? (dynamic-require "directory-require.rkt" 'color) "second"))
+(check-equal? (force-dynamic-require "directory-require.rkt" 'color) "second")

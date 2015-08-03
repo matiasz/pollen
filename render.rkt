@@ -1,4 +1,4 @@
-#lang sugar/debug racket/base
+#lang racket/base
 (require racket/file racket/path racket/match racket/list)
 (require sugar/coerce sugar/test sugar/define sugar/container sugar/file sugar/len)
 (require "file.rkt" "cache.rkt" "world.rkt" "debug.rkt" "pagetree.rkt" "project.rkt" "template.rkt" "rerequire.rkt")
@@ -206,7 +206,7 @@
                  (filter not-false? ; if any of the possibilities below are invalid, they return #f 
                          (list
                           ;; Q: why does next line have to be dynamic-require rather than cached-require?
-                          (let ([source-metas (cached-require (->complete-path source-path) (world:current-meta-export) 'get-template)])
+                          (let ([source-metas (cached-require (->complete-path source-path) (world:current-meta-export))])
                               (and ((->symbol (world:current-template-meta-key)) . in? . source-metas)
                                    (build-path source-dir (select-from-metas (->string (world:current-template-meta-key)) source-metas)))) ; path based on metas
                           (and (filename-extension output-path) (build-path (world:current-project-root) 
@@ -278,6 +278,7 @@
   (define cache-ns (car (current-eval-namespace-cache)))
   (define cached-modules (cdr (current-eval-namespace-cache)))
   (parameterize ([current-namespace (make-base-namespace)]
+                 [current-output-port (current-error-port)]
                  [current-pagetree (make-project-pagetree (world:current-project-root))])
     (for-each (λ(mod-name) (namespace-attach-module cache-ns mod-name)) cached-modules)   
     (eval expr-to-eval (current-namespace))))
