@@ -9,7 +9,7 @@
 (define directory-require "directory-require.rkt")
 (define (get-path-to-override)
   ;; clue: putting config inside dr.rkt is a bad idea
-  (build-path (current-project-root) "directory-config.rkt"))
+  (build-path (current-project-root) directory-require))
 
 ;; parameters should not be made settable.
 (define-for-syntax config-submodule-name 'config)
@@ -24,7 +24,7 @@
            (define base-name default-value)
            (define fail-thunk-name (λ _ base-name))
            (define current-name (λ _ (with-handlers ([exn:fail? fail-thunk-name])
-                                    (dynamic-require (get-path-to-override) 'base-name fail-thunk-name))))))]))
+                                    (dynamic-require `(submod ,(get-path-to-override) config) 'base-name fail-thunk-name))))))]))
 
 (define-settable pollen-version "0.001")
 
