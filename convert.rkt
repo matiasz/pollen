@@ -1,48 +1,51 @@
 #lang racket/base
-(require sugar txexpr racket/list racket/string pollen/world xml html racket/file racket/match pollen/html net/url racket/port)
+(require sugar/define txexpr sugar/coerce pollen/world racket/string racket/list (prefix-in x: xml) (prefix-in h: html) net/url racket/port)
+
+(module+ test
+  (require rackunit))
 
 (define (attrs->pollen attrs)
   (string-join (flatten (map (λ(pair) (list (format "'~a:" (car pair)) (format "\"~a\"" (cadr pair)))) attrs)) " "))
 
-
-(define/contract+provide (xexpr->pollen x #:p-breaks [p-breaks #f])
-  ((xexpr?) (#:p-breaks boolean?) . ->* . string?)
-  
+(define+provide/contract (xexpr->pollen x)
+  (xexpr? . -> . string?)
   (let loop ([x x])
     (cond
-      [(and p-breaks (txexpr? x) (equal? (car x) 'p) (apply string-append `("\n" ,@(map ->string (map loop (get-elements x))) "\n")))]
-      [(txexpr? x) (apply string-append 
-                          (map ->string  `(,(world:current-command-char) ,(get-tag x) 
-                                                                 ,@(if (not (null? (get-attrs x))) `("[" ,(attrs->pollen (get-attrs x)) "]") null) 
-                                                                 ,@(if (not (null? (get-elements x))) `("{" ,@(map loop (get-elements x)) "}" ) null))))]
-      [(symbol? x) (loop (entity->integer x))]
-      [(number? x) (format "~a" (integer->char x))]
+      [(txexpr? x) (define-values (tag attrs elements) (txexpr->values x))
+                   (string-append* 
+                    (map ->string  `(,(world:current-command-char) ,tag 
+                                                                   ,@(if (not (empty? attrs))
+                                                                         `("[" ,(attrs->pollen attrs) "]")
+                                                                         empty) 
+                                                                   ,@(if (not (empty? elements))
+                                                                         `("{" ,@(map loop elements) "}" )
+                                                                         empty))))]
+      [(symbol? x) (format "◊string->symbol{~a}" x)]
+      [(x:valid-char? x) (format "◊string->number{~a}" x)]
       [else x])))
 
 
-(define/contract+provide (html->xexpr html-string)
+(define+provide/contract (html->xexpr html-string)
   (string? . -> . xexpr?)
-  (use-html-spec #f)
-  (define xexpr-results 
-    (let loop ([elem (read-html-as-xml (open-input-string html-string))])
-      (match elem
-        [(struct pcdata (start stop string)) string]
-        [(struct entity (start stop entity)) entity]
-        [(struct attribute (start stop key value)) (list key value)]
-        [(struct element (start stop name attributes content)) `(,name ,(map loop attributes) ,@(map loop content))]
-        [(list elements ...) (map loop elements)]
-        [else (format "unknown item: ~a" elem)])))
+  (parameterize ([x:permissive-xexprs #t]
+                 [x:xexpr-drop-empty-attributes #t])
+    `(xexpr ,@(map x:xml->xexpr (h:read-html-as-xml (open-input-string html-string))))))
 
-  ; xexpr-results will be a list with whitespace elements, so strip those out
-  (car (filter-not (λ(x) (and (string? x) (regexp-match #px"\\s+" x))) xexpr-results)))
+(module+ test
+  (check-equal? (html->xexpr "<script>4 > 3</script>") '(xexpr (script "4 > 3"))))
+
+(define+provide/contract (url->xexpr url-or-string)
+  ((or/c string? url?) . -> . xexpr?)
+  (define url (if (string? url-or-string) (string->url url-or-string) url-or-string))
+  (html->xexpr (port->string (get-pure-port url))))
 
 
-(define/contract+provide (html->pollen html-string #:p-breaks [p-breaks #f])
-  ((string?) (#:p-breaks boolean?) . ->* . string?)
-  (xexpr->pollen #:p-breaks p-breaks (html->xexpr html-string))) 
+(define+provide/contract (html->pollen html-string)
+  (string? . -> . string?)
+  (xexpr->pollen (html->xexpr html-string))) 
 
 
-(define/contract+provide (url->pollen url-or-string #:p-breaks [p-breaks #f])
+(define+provide/contract (url->pollen url-or-string #:p-breaks [p-breaks #f])
   (((or/c string? url?)) (#:p-breaks boolean?) . ->* . string?)
   (define url (if (string? url-or-string) (string->url url-or-string) url-or-string))
   (define url-result (port->string (get-pure-port url)))
@@ -54,4 +57,24 @@
   ; (xexpr->pollen '(p ((class "foo")) "You are" "\n\n" "puppy"))
   ; (xexpr->pollen '(p ((class "foo")) "You are " (em "so") " puppy"))
   ;  (display (html->pollen #:p-breaks #t (file->string "index.html"))))
-)
+  )
+
+(require racket/match)
+(define (extract-pcdata some-content)
+    (cond [(x:pcdata? some-content)
+           (list (x:pcdata-string some-content))]
+          [(x:entity? some-content)
+           (list)]
+          [else
+           (extract-pcdata-from-element some-content)]))
+
+(define (extract-pcdata-from-element an-html-element)
+    (match an-html-element
+      [(struct h:html-full (attributes content))
+       (apply append (map extract-pcdata content))]
+ 
+      [(struct h:html-element (attributes))
+       '()]))
+
+
+(define h (h:read-html (open-input-string "<script>4 > 3</script>")))
