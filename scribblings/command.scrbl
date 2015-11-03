@@ -904,6 +904,23 @@ For numeric entities, you can also use a four-digit Unicode hex number by prefac
 
 Of course, you don't need to use @racket[string->symbol] and @racket[string->number] directly in your source. You can also define tag functions that generate entities. The key point is that to be treated as an entity, the return value must be a symbol or number, rather than a string.
 
+
+@section{Adding Pollen-mode commands to a Racket file}
+
+@defmodulelang[pollen/exp]
+
+Just as you can embed any Racket-mode command in a Pollen source file, you can go the other way and embed Pollen-mode commands in a Racket file. For instance, in your @secref["The__pollen_rkt__file"], you may find it convenient to use Pollen-mode commands to represent certain values.
+
+You invoke @racket[pollen/exp] by adding it to your @tt{#lang} line at the top of your source:
+
+@fileblock["pollen.rkt" @codeblock{
+#lang pollen/exp racket/base
+ 
+I want to attend RacketCon this year.
+}]
+
+
+
 @section{Further reading}
 
 The Pollen language is a variant of Racket's own text-processing language, called Scribble. Thus, most things that can be done with Scribble syntax can also be done with Pollen syntax. For the sake of clarity & brevity, I've only shown you the highlights here. But if you want the full story, see @secref["reader" #:doc '(lib "scribblings/scribble/scribble.scrbl")] in the Scribble documentation.
