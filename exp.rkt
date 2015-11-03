@@ -1,3 +1,5 @@
+#lang racket/base
+
 (module reader racket/base
   (require syntax/module-reader pollen/world
            (only-in scribble/reader make-at-readtable))
