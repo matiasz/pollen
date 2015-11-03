@@ -43,7 +43,7 @@
   (define (wrap-reader p)
     (λ args
       (parameterize ([current-readtable (make-at-readtable #:datum-readtable 'dynamic
-                                                           #:command-readtable 'dynamic
+                                                           ;; #:command-readtable 'dynamic
                                                            #:command-char (world:current-command-char))])
         (apply p args))))
   
