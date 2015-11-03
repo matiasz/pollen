@@ -3,7 +3,7 @@
 (module runtime-config racket/base
   (provide configure)
   
-  (require (only-in scribble/reader make-at-readtable))
+  (require (only-in "exp-helper.rkt" make-at-readtable))
   
   (define (configure data)
     (define old-read (current-read-interaction))
@@ -43,7 +43,7 @@
   (define (wrap-reader p)
     (λ args
       (parameterize ([current-readtable (make-at-readtable #:datum-readtable 'dynamic
-                                                           ;; #:command-readtable 'dynamic
+                                                           #:command-readtable 'dynamic
                                                            #:command-char (world:current-command-char))])
         (apply p args))))
   
