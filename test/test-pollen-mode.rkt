@@ -1,4 +1,4 @@
-#lang pollen/exp racket/base
+#lang pollen/mode racket/base
 (require rackunit racket/string)
 
 (define (proc)

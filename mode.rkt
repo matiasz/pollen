@@ -3,7 +3,7 @@
 (module runtime-config racket/base
   (provide configure)
   
-  (require (only-in "exp-helper.rkt" make-at-readtable))
+  (require (only-in "mode-helper.rkt" make-at-readtable))
   
   (define (configure data)
     (define old-read (current-read-interaction))
@@ -26,7 +26,7 @@
     (λ(key default)
       (case key
         [(configure-runtime)
-         (define config-vec '#[(submod pollen/exp runtime-config) configure #f])
+         (define config-vec '#[(submod pollen/mode runtime-config) configure #f])
          (define other-config (other-get-info key default))
          (cond [(list? other-config) (cons config-vec other-config)]
                [else (list config-vec)])]
@@ -34,7 +34,7 @@
 
 (module reader racket/base
   (require syntax/module-reader pollen/world
-           (only-in "exp-helper.rkt" make-at-readtable))
+           (only-in "mode-helper.rkt" make-at-readtable))
   
   (provide (rename-out [at-read read]
                        [at-read-syntax read-syntax]
@@ -49,7 +49,7 @@
   
   (define-values (at-read at-read-syntax at-get-info)
     (make-meta-reader
-     'pollen/exp
+     'pollen/mode
      "language path"
      (λ(bstr)
        (let* ([str (bytes->string/latin-1 bstr)]
@@ -66,7 +66,7 @@
        (λ args
          (define stx (apply read-syntax args))
          (define old-prop (syntax-property stx 'module-language))
-         (define new-prop `#((submod pollen/exp language-info) get-language-info ,old-prop))
+         (define new-prop `#((submod pollen/mode language-info) get-language-info ,old-prop))
          (syntax-property stx 'module-language new-prop)))
      (λ(proc)
        (λ(key defval)
