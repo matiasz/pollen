@@ -34,7 +34,7 @@
 
 (module reader racket/base
   (require syntax/module-reader pollen/world
-           (only-in scribble/reader make-at-readtable))
+           (only-in "exp-helper.rkt" make-at-readtable))
   
   (provide (rename-out [at-read read]
                        [at-read-syntax read-syntax]
