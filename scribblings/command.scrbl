@@ -1,7 +1,7 @@
 #lang scribble/manual
 @(require scribble/bnf scribble/eval "utils.rkt" "mb-tools.rkt"
           (for-syntax racket/base)
-          (for-label pollen/world pollen/render pollen/template (only-in scribble/reader
+          (for-label rackunit pollen/world pollen/render pollen/template (only-in scribble/reader
                               use-at-readtable)))
 
 @(define read-eval (make-base-eval))
@@ -909,16 +909,54 @@ Of course, you don't need to use @racket[string->symbol] and @racket[string->num
 
 @defmodulelang[pollen/exp]
 
-Just as you can embed any Racket-mode command in a Pollen source file, you can go the other way and embed Pollen-mode commands in a Racket file. For instance, in your @secref["The__pollen_rkt__file"], you may find it convenient to use Pollen-mode commands to represent certain values.
+Just as you can embed any Racket-mode command in a Pollen source file, you can go the other way and embed Pollen-mode commands in a Racket file. For instance, in your @secref["The__pollen_rkt__file"], you may find it convenient to use Pollen mode for certain values.
 
-You invoke @racket[pollen/exp] by adding it to your @tt{#lang} line at the top of your source:
+You enable Pollen mode within your source file by adding @racketmodname[pollen/exp] to your @tt{#lang} line at the top of your source:
 
 @fileblock["pollen.rkt" @codeblock{
 #lang pollen/exp racket/base
- 
-I want to attend RacketCon this year.
+(require pollen/tag)
+
+(define link (make-default-tag-function 'a))
+
+(define (home-link)
+  (link #:href "index.html" "Click to go home"))
+
+(define (home-link-pollen-mode)
+  ◊link[#:href "index.html"]{Click to go home})
+
 }]
 
+Here, both @tt{(home-link)} and @tt{(home-link-pollen-mode)} will produce the same X-expression as a result:
+
+@terminal{'(a ((href "index.html")) "Click to go home")}
+
+
+Of course, you can use @racketmodname[pollen/exp] in any Racket source file, not just @filepath{pollen.rkt}. 
+
+Keep in mind that @racketmodname[pollen/exp] is just a syntactic convenience. It doesn't change any of the underlying semantics of your Racket source file. Your Pollen-mode commands are being translated into Racket commands and compiled along with everything else.
+
+Another good way to use Pollen-mode commands in Racket is for unit tests with @racketmodname[rackunit]. With @racketmodname[pollen/exp], you can write your unit tests in Pollen mode or Racket mode (or mix them).
+
+@margin-note{Unit tests are little one-line tests you put into your code to verify it does what you expect. You do this with the @racketmodname[rackunit] library, which is beloved by all Racket programmers. For more, see @secref["quick-start" #:doc '(lib "rackunit/scribblings/rackunit.scrbl")].}
+
+@fileblock["pollen.rkt" @codeblock|{
+#lang pollen/exp racket/base
+(require rackunit)
+
+(define (tag-fn arg . text-args)
+  `(div ((class ,arg)) ,@text-args))
+
+(check-equal? ◊tag-fn["42"]{hello world}
+              '(div ((class "42")) "hello world"))
+
+(check-equal? (tag-fn "42" "hello world")
+              '(div ((class "42")) "hello world"))
+
+(check-equal? ◊tag-fn["42"]{hello world}
+              ◊'div[((class "42"))]{hello world})
+
+}|]
 
 
 @section{Further reading}

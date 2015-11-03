@@ -1,5 +1,17 @@
 #lang racket/base
 
+(module runtime-config racket/base
+  (provide configure)
+  
+  (require (only-in scribble/reader make-at-readtable))
+  
+  (define (configure data)
+    (define old-read (current-read-interaction))
+    (define (new-read src in)
+      (parameterize ([current-readtable (make-at-readtable #:readtable (current-readtable))])
+        (old-read src in)))
+    (current-read-interaction new-read)))
+
 (module language-info racket/base
   (provide get-language-info)
   
@@ -14,7 +26,7 @@
     (λ(key default)
       (case key
         [(configure-runtime)
-         (define config-vec '#[pollen/exp/lang/runtime-config configure #f])
+         (define config-vec '#[(submod pollen/exp runtime-config) configure #f])
          (define other-config (other-get-info key default))
          (cond [(list? other-config) (cons config-vec other-config)]
                [else (list config-vec)])]
