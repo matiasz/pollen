@@ -1,5 +1,25 @@
 #lang racket/base
 
+(module language-info racket/base
+  (provide get-language-info)
+  
+  (require racket/match)
+  
+  (define (get-language-info data)
+    (define other-get-info
+      (match data
+        [(vector mod sym data2)
+         ((dynamic-require mod sym) data2)]
+        [_ (λ(key default) default)]))
+    (λ(key default)
+      (case key
+        [(configure-runtime)
+         (define config-vec '#[pollen/exp/lang/runtime-config configure #f])
+         (define other-config (other-get-info key default))
+         (cond [(list? other-config) (cons config-vec other-config)]
+               [else (list config-vec)])]
+        [else (other-get-info key default)]))))
+
 (module reader racket/base
   (require syntax/module-reader pollen/world
            (only-in scribble/reader make-at-readtable))
@@ -34,7 +54,7 @@
        (λ args
          (define stx (apply read-syntax args))
          (define old-prop (syntax-property stx 'module-language))
-         (define new-prop `#(pollen/exp/lang/language-info get-language-info ,old-prop))
+         (define new-prop `#((submod pollen/exp language-info) get-language-info ,old-prop))
          (syntax-property stx 'module-language new-prop)))
      (λ(proc)
        (λ(key defval)
