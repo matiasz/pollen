@@ -2,7 +2,7 @@
 @(require pollen/private/version
 (for-label pollen/cache pollen/core pollen/template pollen/decode pollen/unstable/typography pollen/setup pollen/template/html))
 
-@title{Version notes (@|pollen:version|)}
+@title[#:tag "version-notes"]{Version notes (@|pollen:version|)}
 
 @section{What the version number means}
 
