@@ -1,8 +1,5 @@
 #lang scribble/manual
 
-#lang scribble/manual
-@(require pollen/private/version)
-
 @title[#:style 'toc]{Pollen: the book is a program}
 
 @author[(author+email "Matthew Butterick" "mb@mbtype.com")]
@@ -31,7 +28,6 @@ That language is @link["http://racket-lang.org"]{Racket}. I chose Racket because
 Or, if you can find a better digital-publishing tool, use that. But I'm never going back to the way I used to work.
 
 
-
 @local-table-of-contents[]
 
 
@@ -53,8 +49,6 @@ Or, if you can find a better digital-publishing tool, use that. But I'm never go
 @include-section["more-help.scrbl"]
 @include-section["acknowledgments.scrbl"]
 @include-section["license.scrbl"]
+@include-section["version-history.scrbl"]
 
 @index-section[]
-
-
-@italic{Pollen version @|pollen:version|}
