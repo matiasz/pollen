@@ -40,7 +40,7 @@
   ;; drop leading newlines, as they're often the result of `defines` and `requires`
   (or (memf (λ (ln) (not (equal? ln (setup:newline)))) doc) null))
 
-(require br/debug (for-syntax br/debug br/syntax syntax/strip-context pollen/core) racket/splicing)
+(require br/debug (for-syntax br/debug br/syntax syntax/strip-context pollen/core racket/list) racket/splicing)
 (define-syntax (pollen-module-begin stx)
   (syntax-case stx ()
     [(_ . EXPRS)
@@ -48,8 +48,8 @@
                     [EXPRS (replace-context #'here #'EXPRS)]
                     [PARSER-MODE-FROM-READER (syntax-property stx 'parser-mode-from-reader)]
                     [PARSER-MODE-FROM-EXPANDER (syntax-property #'EXPRS 'parser-mode-from-expander)]
-                    [(KV ...) (syntax-case (local-transformer-expand/capture-lifts #'EXPRS 'expression null) ()
-                                [(begin (define-values (ID) (K V)) ... REST) #'('(K V) ...)])]
+                    [((KV ...) LAST) (syntax-case (local-transformer-expand/capture-lifts #`#,(drop (syntax->list #'EXPRS) 2) 'expression null) ()
+                                [(begin (define-values (ID) (K V)) ... LAST) #'(('(K V) ...) LAST)])]
                     [META-HASH #'(apply hasheq (apply append (list KV ...)))]
                     [METAS-ID (setup:meta-export)]
                     [META-MOD-ID (setup:meta-export)]
