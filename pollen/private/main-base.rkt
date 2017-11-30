@@ -40,7 +40,7 @@
   ;; drop leading newlines, as they're often the result of `defines` and `requires`
   (or (memf (λ (ln) (not (equal? ln (setup:newline)))) doc) null))
 
-(require br/debug (for-syntax br/debug br/syntax syntax/strip-context pollen/core racket/list) racket/splicing)
+(require (for-syntax syntax/strip-context pollen/core racket/list) racket/splicing)
 (define-syntax (pollen-module-begin stx)
   (syntax-case stx ()
     [(_ . EXPRS)
