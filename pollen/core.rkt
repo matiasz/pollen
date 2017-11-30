@@ -13,7 +13,12 @@
 (define identity (λ (x) x))
 (define not-false? identity)
 
-(define+provide define-meta identity) ;; stub so it will be picked up for docs
+(require racket/stxparam)
+(provide define-meta)
+(define-syntax-parameter define-meta (λ (stx)
+  (syntax-case stx ()
+    [(_ KEY VAL) 
+     (syntax-local-lift-expression #'(KEY VAL))])))
 
 
 (define+provide/contract (select* key value-source [caller 'select*])
