@@ -48,8 +48,12 @@
                     [EXPRS (replace-context #'here #'EXPRS)]
                     [PARSER-MODE-FROM-READER (syntax-property stx 'parser-mode-from-reader)]
                     [PARSER-MODE-FROM-EXPANDER (syntax-property #'EXPRS 'parser-mode-from-expander)]
-                    [((KV ...) LAST) (syntax-case (local-transformer-expand/capture-lifts #`#,(drop (syntax->list #'EXPRS) 2) 'expression null) ()
-                                [(begin (define-values (ID) (K V)) ... LAST) #'(('(K V) ...) LAST)])]
+                    [((KV ...) LAST) (let ([number-of-lines-added-in-reader 2])
+                                       (syntax-case (local-transformer-expand/capture-lifts
+                                                     (if (syntax-property stx 'parser-mode-from-reader)
+                                                         #`#,(drop (syntax->list #'EXPRS) number-of-lines-added-in-reader)
+                                                         #'EXPRS) 'expression null) ()
+                                         [(begin (define-values (ID) (K V)) ... . LAST) #'(('(K V) ...) . LAST)]))]
                     [META-HASH #'(apply hasheq (apply append (list KV ...)))]
                     [METAS-ID (setup:meta-export)]
                     [META-MOD-ID (setup:meta-export)]
@@ -60,7 +64,7 @@
        
        #`(#%module-begin
           (require pollen/top) ; could be at top of this module, but better to contain it
-              
+          
           (module META-MOD-ID racket/base
             (provide METAS-ID)
             (define METAS-ID META-HASH))
