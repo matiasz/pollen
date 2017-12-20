@@ -40,7 +40,7 @@
   ;; drop leading newlines, as they're often the result of `defines` and `requires`
   (or (memf (λ (ln) (not (equal? ln (setup:newline)))) doc) null))
 
-(require (for-syntax syntax/strip-context pollen/core racket/list) racket/splicing)
+(require (for-syntax syntax/strip-context pollen/core racket/list sugar/debug) racket/splicing)
 (define-syntax (pollen-module-begin stx)
   (syntax-case stx ()
     [(_ . EXPRS)
@@ -48,12 +48,12 @@
                     [EXPRS (replace-context #'here #'EXPRS)]
                     [PARSER-MODE-FROM-READER (syntax-property stx 'parser-mode-from-reader)]
                     [PARSER-MODE-FROM-EXPANDER (syntax-property #'EXPRS 'parser-mode-from-expander)]
-                    [((KV ...) LAST) (let ([number-of-lines-added-in-reader 2])
-                                       (syntax-case (local-transformer-expand/capture-lifts
-                                                     (if (syntax-property stx 'parser-mode-from-reader)
-                                                         #`#,(drop (syntax->list #'EXPRS) number-of-lines-added-in-reader)
-                                                         #'EXPRS) 'expression null) ()
-                                         [(begin (define-values (ID) (K V)) ... . LAST) #'(('(K V) ...) . LAST)]))]
+                    [(KV ...) (let ([number-of-lines-added-in-reader 2])
+                                (syntax-case (report (local-transformer-expand/capture-lifts
+                                              (if (syntax-property stx 'parser-mode-from-reader)
+                                                  #`#,(drop (syntax->list #'EXPRS) number-of-lines-added-in-reader)
+                                                  #'EXPRS) 'expression null)) ()
+                                  [(begin (define-values (ID) (K V)) ... . _) #'('(K V) ...)]))]
                     [META-HASH #'(apply hasheq (apply append (list KV ...)))]
                     [METAS-ID (setup:meta-export)]
                     [META-MOD-ID (setup:meta-export)]
